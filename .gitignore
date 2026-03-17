@@ -1,0 +1,96 @@
+
+---
+
+## **2. .gitignore**
+
+```gitignore
+# -----------------------------
+# Python virtual environments
+# -----------------------------
+venv/
+.venv/
+env/
+
+# -----------------------------
+# Environment / secrets
+# -----------------------------
+.env
+*.env
+
+# -----------------------------
+# Python cache / bytecode
+# -----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# -----------------------------
+# Pytest cache
+# -----------------------------
+.pytest_cache/
+.cache/
+
+# -----------------------------
+# Coverage reports
+# -----------------------------
+htmlcov/
+.coverage
+coverage.xml
+
+# -----------------------------
+# Distribution / packaging
+# -----------------------------
+dist/
+build/
+*.egg-info/
+
+# -----------------------------
+# IDE / editor files
+# -----------------------------
+.vscode/
+.idea/
+*.swo
+*.swp
+*.swn
+
+# -----------------------------
+# OS files
+# -----------------------------
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+# Runtime logs
+# -----------------------------
+logs/
+*.log
+
+# -----------------------------
+# AI-learned patterns (ignore by default)
+# -----------------------------
+backend/storage/patterns/learned.json
+
+# -----------------------------
+# Temporary / uploads
+# -----------------------------
+tmp/
+temp/
+uploads/
+
+# -----------------------------
+# Optional: Jupyter / notebook checkpoints
+# -----------------------------
+.ipynb_checkpoints/
+
+# -----------------------------
+# Optional: MacOS metadata
+# -----------------------------
+.AppleDouble
+.LSOverride
+
+# -----------------------------
+# Optional: VS Code workspace settings
+# -----------------------------
+*.code-workspace
