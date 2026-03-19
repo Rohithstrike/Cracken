@@ -1,76 +1,132 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-color-scheme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="SOC Log Parser — Blue Team log analysis and AI-assisted regex generation" />
+  <meta name="theme-color" content="#0c0e12" />
+
   <title>SOC Log Parser — Blue Team Intelligence</title>
+
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Styles -->
   <link rel="stylesheet" href="css/main.css" />
 </head>
 <body>
 
-  <!-- Ambient grid overlay -->
+  <noscript>
+    <style>
+      body {
+        display: flex; align-items: center; justify-content: center;
+        min-height: 100vh; font-family: sans-serif;
+        color: #e8f0f8; background: #0c0e12;
+      }
+    </style>
+    <p>SOC Log Parser requires JavaScript to run. Please enable it in your browser.</p>
+  </noscript>
+
+  <!-- Ambient grid background -->
   <div class="grid-overlay" aria-hidden="true"></div>
 
-  <!-- ── Toast container ── -->
-  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <!-- ── Toast notifications ─────────────────────────────────────────────── -->
+  <div id="toast-container" role="alert" aria-live="polite" aria-atomic="false"></div>
 
-  <!-- ── Header ── -->
-  <header class="site-header">
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header class="site-header" role="banner">
     <div class="header-inner">
+
       <div class="brand">
-        <span class="brand-icon" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-            <rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="12" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="1" y="12" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-            <rect x="12" y="12" width="9" height="9" rx="1.5" fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
+  <span class="brand-icon" aria-hidden="true">
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+      <rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="12" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="1" y="12" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="12" y="12" width="9" height="9" rx="1.5" fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
+    </svg>
+  </span>
+
+  <div class="brand-text">
+    <span class="brand-name">Cracken</span>
+    <span class="brand-subtitle">AI Log Intelligence Platform</span>
+  </div>
+</div>
+
+      <nav class="header-meta" aria-label="System status">
+        <span
+          class="status-pill"
+          id="connection-status"
+          role="status"
+          aria-live="polite"
+          aria-label="Backend connection status"
+          title="Backend health check — GET /health every 8 seconds"
+        >
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="status-label" id="status-label-text">Checking…</span>
         </span>
-        <span class="brand-name">SOC<em>Cracken</em></span>
-      </div>
-      <nav class="header-meta">
-        <span class="status-pill" id="connection-status">
-          <span class="status-dot"></span>
-          <span class="status-label">Online</span>
-        </span>
-        <span class="header-version">v2.0 · Blue Team</span>
+        <span class="header-version" aria-label="Application version">v2.0 · Blue Team</span>
       </nav>
+
     </div>
   </header>
 
-  <!-- ── Main layout ── -->
-  <main class="app-shell">
+  <!-- ── Main application shell ──────────────────────────────────────────── -->
+  <main class="app-shell" role="main">
 
-    <!-- ── Left sidebar ── -->
-    <aside class="sidebar">
-      <section class="upload-section" id="upload-section">
-        <div class="section-label">
+    <!-- ── Sidebar ────────────────────────────────────────────────────── -->
+    <aside class="sidebar" aria-label="Upload controls and parse results">
+
+      <!-- Upload section -->
+      <section class="upload-section" id="upload-section" aria-label="Log file upload">
+        <div class="section-label" aria-hidden="true">
           <span class="label-line"></span>
           <span>LOG SOURCE</span>
         </div>
 
         <!-- Drop zone -->
-        <div class="drop-zone" id="drop-zone" role="button" tabindex="0"
-             aria-label="Drop log file here or click to browse">
+        <div
+          class="drop-zone"
+          id="drop-zone"
+          role="button"
+          tabindex="0"
+          aria-label="Drop a log file here, or press Enter to browse"
+          aria-describedby="drop-formats-hint"
+        >
           <div class="drop-zone-inner">
             <div class="drop-icon" aria-hidden="true">
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <path d="M16 4L16 22M16 4L10 10M16 4L22 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M4 24V26C4 27.1046 4.89543 28 6 28H26C27.1046 28 28 27.1046 28 26V24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="M16 4L16 22M16 4L10 10M16 4L22 10"
+                      stroke="currentColor" stroke-width="1.8"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 24V26C4 27.1046 4.89543 28 6 28H26C27.1046 28 28 27.1046 28 26V24"
+                      stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </div>
             <p class="drop-title">Drop log file here</p>
-            <p class="drop-sub">or <button class="link-btn" id="browse-btn">browse files</button></p>
-            <p class="drop-formats">.log · .txt · max 50 MB</p>
+            <p class="drop-sub">
+              or <button class="link-btn" id="browse-btn" type="button">browse files</button>
+            </p>
+            <p class="drop-formats" id="drop-formats-hint">.log · .txt · max 50 MB</p>
           </div>
-          <input type="file" id="file-input" accept=".log,.txt" hidden aria-label="Select log file" />
+
+          <input
+            type="file"
+            id="file-input"
+            accept=".log,.txt"
+            hidden
+            aria-label="Select a log file to upload"
+          />
         </div>
 
-        <!-- File info (shown after selection) -->
-        <div class="file-info-card" id="file-info-card" hidden>
+        <!-- File info card — visible after file is selected -->
+        <div class="file-info-card" id="file-info-card" hidden aria-live="polite">
           <div class="file-info-icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="2" y="1" width="10" height="13" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
@@ -82,87 +138,103 @@
             <span class="file-info-name" id="file-info-name"></span>
             <span class="file-info-size" id="file-info-size"></span>
           </div>
-          <button class="file-info-clear" id="file-clear-btn" aria-label="Remove file">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <button
+            class="file-info-clear"
+            id="file-clear-btn"
+            type="button"
+            aria-label="Remove selected file"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
               <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
           </button>
         </div>
 
-        <!-- Parse button -->
-        <button class="btn btn-primary" id="parse-btn" disabled>
+        <!-- Parse trigger -->
+        <button class="btn btn-primary" id="parse-btn" type="button" disabled aria-disabled="true">
           <span class="btn-text">Parse Logs</span>
-          <svg class="btn-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M2 7H12M8 3L12 7L8 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg class="btn-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M2 7H12M8 3L12 7L8 11"
+                  stroke="currentColor" stroke-width="1.6"
+                  stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
       </section>
 
-      <!-- Stats panel (shown after parse) -->
-      <section class="stats-section" id="stats-section" hidden>
-        <div class="section-label">
+      <!-- Stats section — visible after successful parse -->
+      <section class="stats-section" id="stats-section" hidden aria-label="Parse statistics">
+        <div class="section-label" aria-hidden="true">
           <span class="label-line"></span>
           <span>PARSE RESULTS</span>
         </div>
-        <div class="stat-grid">
-          <div class="stat-card">
-            <span class="stat-value" id="stat-total">—</span>
+
+        <div class="stat-grid" role="list" aria-label="Parse statistics">
+          <div class="stat-card" role="listitem">
+            <span class="stat-value" id="stat-total" aria-label="Total lines">—</span>
             <span class="stat-label">Total lines</span>
           </div>
-          <div class="stat-card stat-card--accent">
-            <span class="stat-value" id="stat-matched">—</span>
+          <div class="stat-card stat-card--accent" role="listitem">
+            <span class="stat-value" id="stat-matched" aria-label="Matched lines">—</span>
             <span class="stat-label">Matched</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-value" id="stat-unmatched">—</span>
+          <div class="stat-card" role="listitem">
+            <span class="stat-value" id="stat-unmatched" aria-label="Unmatched lines">—</span>
             <span class="stat-label">Unmatched</span>
           </div>
-          <div class="stat-card">
-            <span class="stat-value" id="stat-rate">—</span>
+          <div class="stat-card" role="listitem">
+            <span class="stat-value" id="stat-rate" aria-label="Match rate">—</span>
             <span class="stat-label">Match rate</span>
           </div>
         </div>
 
-        <div class="meta-tags" id="meta-tags"></div>
+        <!-- Pattern / source meta tags — populated by uploader.js -->
+        <div class="meta-tags" id="meta-tags" aria-label="Pattern metadata"></div>
 
-        <button class="btn btn-export" id="export-btn" disabled>
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <path d="M6.5 1V9M6.5 9L3.5 6M6.5 9L9.5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M1 10.5V11.5C1 12.0523 1.44772 12.5 2 12.5H11C11.5523 12.5 12 12.0523 12 11.5V10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <!-- CSV export -->
+        <button class="btn btn-export" id="export-btn" type="button" disabled aria-disabled="true">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+            <path d="M6.5 1V9M6.5 9L3.5 6M6.5 9L9.5 6"
+                  stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M1 10.5V11.5C1 12.0523 1.44772 12.5 2 12.5H11C11.5523 12.5 12 12.0523 12 11.5V10.5"
+                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
           Export CSV
         </button>
       </section>
+
     </aside>
 
-    <!-- ── Content area ── -->
-    <section class="content-area">
+    <!-- ── Content area ────────────────────────────────────────────────── -->
+    <!--
+      INTENTIONALLY EMPTY on load.
+      The JS overlay (#loader-overlay) is injected here at runtime by uploader.js.
+      The table (#table-container) is shown here after a successful parse.
+      The error panel (#error-panel) is shown here on failure.
+      There is NO empty state / placeholder content — the center is blank until
+      the user triggers an action.
+    -->
+    <section
+      class="content-area"
+      id="content-area"
+      aria-label="Log analysis results"
+      aria-live="polite"
+      aria-relevant="additions removals"
+    >
 
-      <!-- Empty state -->
-      <div class="empty-state" id="empty-state">
-        <div class="empty-state-visual" aria-hidden="true">
-          <div class="empty-grid">
-            <div class="eg-row eg-row--dim"></div>
-            <div class="eg-row eg-row--dim"></div>
-            <div class="eg-row eg-row--dim"></div>
-            <div class="eg-row"></div>
-            <div class="eg-row"></div>
-            <div class="eg-row eg-row--dim"></div>
-            <div class="eg-row"></div>
-          </div>
-        </div>
-        <h2 class="empty-title">No logs loaded</h2>
-        <p class="empty-sub">Upload a <code>.log</code> or <code>.txt</code> file to begin structured analysis</p>
-      </div>
-
-      <!-- Loader -->
-      <div class="loader-panel" id="loader-panel" hidden>
+      <!--
+        Fallback loader panel.
+        The JS-built #loader-overlay (position:absolute, inset:0) is used
+        in practice. This panel exists only as a graceful fallback.
+        It is always hidden by default.
+      -->
+      <div class="loader-panel" id="loader-panel" hidden aria-hidden="true">
         <div class="loader-inner">
-          <div class="loader-track" aria-hidden="true">
+          <div class="loader-track">
             <div class="loader-bar" id="loader-bar"></div>
           </div>
           <p class="loader-status" id="loader-status">Initialising…</p>
-          <div class="loader-steps" id="loader-steps" aria-hidden="true">
+          <div class="loader-steps" id="loader-steps">
             <span class="lstep" data-step="upload">Uploading</span>
             <span class="lstep-sep">›</span>
             <span class="lstep" data-step="analyze">Analyzing</span>
@@ -174,8 +246,8 @@
         </div>
       </div>
 
-      <!-- Error state -->
-      <div class="error-panel" id="error-panel" hidden>
+      <!-- Error state — shown by uploader.js on parse failure -->
+      <div class="error-panel" id="error-panel" hidden role="alert">
         <div class="error-icon" aria-hidden="true">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
             <circle cx="14" cy="14" r="12" stroke="currentColor" stroke-width="1.5"/>
@@ -185,47 +257,66 @@
         </div>
         <h3 class="error-title" id="error-title">Parse failed</h3>
         <p class="error-msg" id="error-msg"></p>
-        <button class="btn btn-ghost" id="error-retry-btn">Try again</button>
+        <button class="btn btn-ghost" id="error-retry-btn" type="button">Try again</button>
       </div>
 
-      <!-- Results table container -->
+      <!-- Results table — populated by table.js after successful parse -->
       <div class="table-container" id="table-container" hidden>
+
         <div class="table-toolbar">
           <div class="table-toolbar-left">
-            <span class="table-info" id="table-info"></span>
+            <span class="table-info" id="table-info" aria-live="polite"></span>
           </div>
           <div class="table-toolbar-right">
-            <div class="search-box">
+            <div class="search-box" role="search">
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
                 <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.3"/>
                 <path d="M8.5 8.5L11.5 11.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
               </svg>
-              <input type="search" id="table-search" placeholder="Filter rows…" aria-label="Filter table rows" />
+              <input
+                type="search"
+                id="table-search"
+                placeholder="Filter rows…"
+                aria-label="Filter log table rows"
+                autocomplete="off"
+                spellcheck="false"
+              />
             </div>
           </div>
         </div>
 
-        <div class="table-scroll-wrap" id="table-scroll-wrap">
-          <table class="data-table" id="data-table">
+        <div
+          class="table-scroll-wrap"
+          id="table-scroll-wrap"
+          role="region"
+          aria-label="Parsed log data"
+          tabindex="0"
+        >
+          <table class="data-table" id="data-table" aria-label="Parsed log entries">
             <thead id="table-head"></thead>
             <tbody id="table-body"></tbody>
           </table>
         </div>
 
         <div class="table-footer" id="table-footer">
-          <span id="row-count-label"></span>
-          <span id="preview-notice" class="preview-notice" hidden>
+          <span id="row-count-label" aria-live="polite"></span>
+          <span id="preview-notice" class="preview-notice" hidden aria-live="polite">
             Preview only · Export CSV for full dataset
           </span>
         </div>
+
       </div>
+      <!-- /#table-container -->
 
     </section>
+    <!-- /.content-area -->
+
   </main>
 
-  <!-- Scripts -->
+  <!-- ── Scripts — order is load-dependency order ───────────────────────── -->
   <script src="js/exporter.js"></script>
   <script src="js/table.js"></script>
   <script src="js/uploader.js"></script>
+
 </body>
 </html>
