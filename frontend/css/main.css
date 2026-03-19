@@ -280,6 +280,13 @@ body {
   --status-border: var(--danger-border);
 }
 
+/* Checking state — amber/warning — backend busy but not confirmed down */
+.status-pill.status--checking {
+  --status-color:  var(--warning);
+  --status-bg:     var(--warning-bg);
+  --status-border: var(--warning-border);
+}
+
 .status-dot {
   width: 6px; height: 6px;
   background: var(--status-color);

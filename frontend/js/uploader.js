@@ -1,7 +1,12 @@
 /**
  * uploader.js
  * File selection, step-wise loader overlay, backend fetch, result handoff.
- * Real-time backend health check updates the navbar status pill.
+ * Real-time backend health check with failure-tolerance (3-strike system).
+ *
+ * Health state mapping:
+ *   failCount 0–1  → ONLINE   (single transient failure is ignored)
+ *   failCount 2    → CHECKING (backend may be busy)
+ *   failCount >= 3 → OFFLINE  (confirmed down)
  */
 
 (() => {
@@ -11,7 +16,8 @@
   const API_BASE        = 'http://localhost:8000';
   const API_ENDPOINT    = `${API_BASE}/api/upload`;
   const HEALTH_ENDPOINT = `${API_BASE}/health`;
-  const HEALTH_INTERVAL = 8000;     // ms between health pings
+  const HEALTH_INTERVAL = 8000;   // ms between health pings
+  const HEALTH_TIMEOUT  = 3000;   // ms before a health request is abandoned
   const ALLOWED_EXTS    = ['.log', '.txt'];
   const MAX_SIZE_MB     = 50;
 
@@ -29,10 +35,8 @@
   const errorMsg      = document.getElementById('error-msg');
   const errorRetryBtn = document.getElementById('error-retry-btn');
 
-  // Status pill refs — both exist in the updated index.html
   const statusPill      = document.getElementById('connection-status');
   const statusLabelText = document.getElementById('status-label-text');
-  const statusDot       = statusPill?.querySelector('.status-dot');
 
   // Loader overlay refs — populated by createLoaderOverlay()
   let loaderOverlay = null;
@@ -64,62 +68,112 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // ── Real-time backend health check ───────────────────────────────────────────
-  /**
-   * Pings GET /health and updates the navbar status pill.
-   *
-   * Online  → removes .status--offline, label = "Online"
-   * Offline → adds    .status--offline, label = "Offline"
-   *
-   * Uses a short AbortController timeout (4 s) so a slow/dead server
-   * doesn't leave the pill in "Checking…" forever.
-   * Errors are caught silently — no console.error spam.
-   */
-  let _lastHealthState = null;   // 'online' | 'offline' | null
+  // ── Health check ─────────────────────────────────────────────────────────────
+  //
+  // State machine (failCount drives state, not raw success/failure):
+  //
+  //   failCount 0–1  → 'online'   Single transient failure is silently absorbed.
+  //                                A brief network hiccup or a backend that is
+  //                                momentarily busy does not alarm the user.
+  //
+  //   failCount 2    → 'checking'  Two consecutive failures suggest the backend
+  //                                is under load or slow — warn without panicking.
+  //
+  //   failCount >= 3 → 'offline'   Three consecutive failures confirm the backend
+  //                                is unreachable.
+  //
+  // On every success failCount resets to 0 immediately.
 
+  let _failCount   = 0;      // consecutive failed health requests
+  let _healthState = null;   // last applied state: 'online' | 'checking' | 'offline'
+
+  /**
+   * Maps the current failCount to the correct UI state string.
+   * This is the single source of truth for the state-transition rules.
+   */
+  function resolveHealthState() {
+    if (_failCount <= 1) return 'online';
+    if (_failCount === 2) return 'checking';
+    return 'offline';
+  }
+
+  /**
+   * Applies a health state to the status pill.
+   * Skips all DOM work if the state has not changed — prevents flicker.
+   *
+   *   'online'   → green pill,  "Online",     pulse dot active
+   *   'checking' → amber pill,  "Checking…",  pulse dot active
+   *   'offline'  → red pill,    "Offline",    pulse dot stopped
+   */
+  function applyHealthState(state) {
+    if (state === _healthState) return;   // nothing changed — skip DOM update
+    _healthState = state;
+
+    if (!statusPill || !statusLabelText) return;
+
+    // Clear all state modifier classes before applying the new one
+    statusPill.classList.remove('status--offline', 'status--checking');
+
+    switch (state) {
+      case 'online':
+        // Default CSS variables handle the green colour — no extra class needed
+        statusLabelText.textContent = 'Online';
+        statusPill.setAttribute('aria-label', 'Backend status: online');
+        break;
+
+      case 'checking':
+        statusPill.classList.add('status--checking');
+        statusLabelText.textContent = 'Checking…';
+        statusPill.setAttribute('aria-label', 'Backend status: checking');
+        break;
+
+      case 'offline':
+        statusPill.classList.add('status--offline');
+        statusLabelText.textContent = 'Offline';
+        statusPill.setAttribute('aria-label', 'Backend status: offline');
+        break;
+    }
+  }
+
+  /**
+   * Performs one health ping and updates _failCount accordingly.
+   * Calls applyHealthState() with the resolved state after every ping.
+   */
   async function checkHealth() {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
+    const timer = setTimeout(() => controller.abort(), HEALTH_TIMEOUT);
 
-    let isOnline = false;
+    let success = false;
     try {
       const res = await fetch(HEALTH_ENDPOINT, {
         method: 'GET',
         signal: controller.signal,
         cache:  'no-store',
       });
-      isOnline = res.ok;
+      success = res.ok;
     } catch (_) {
-      isOnline = false;
+      // Network error or timeout — treated as failure
+      success = false;
     } finally {
       clearTimeout(timer);
     }
 
-    // Only update DOM if state actually changed — prevents flicker
-    const newState = isOnline ? 'online' : 'offline';
-    if (newState === _lastHealthState) return;
-    _lastHealthState = newState;
-
-    if (!statusPill || !statusLabelText) return;
-
-    if (isOnline) {
-      statusPill.classList.remove('status--offline');
-      statusLabelText.textContent = 'Online';
-      statusPill.setAttribute('aria-label', 'Backend status: online');
+    if (success) {
+      _failCount = 0;          // reset strike counter on any successful response
     } else {
-      statusPill.classList.add('status--offline');
-      statusLabelText.textContent = 'Offline';
-      statusPill.setAttribute('aria-label', 'Backend status: offline');
+      _failCount += 1;         // increment strike counter on any failure
     }
+
+    // Resolve and apply the state derived from the current failCount
+    applyHealthState(resolveHealthState());
   }
 
   function startHealthCheck() {
-    // Run immediately on load, then on interval
-    checkHealth();
+    checkHealth();                            // run immediately on page load
     setInterval(checkHealth, HEALTH_INTERVAL);
   }
 
-  // ── Loader overlay ───────────────────────────────────────────────────────────
+  // ── Loader overlay ────────────────────────────────────────────────────────
   function createLoaderOverlay() {
     if (document.getElementById('loader-overlay')) return;
 
@@ -127,7 +181,6 @@
                      || document.querySelector('main')
                      || document.body;
 
-    // Ensure positioning context
     if (getComputedStyle(contentArea).position === 'static') {
       contentArea.style.position = 'relative';
     }
@@ -162,13 +215,13 @@
     loaderSteps   = overlay.querySelector('#overlay-steps');
   }
 
-  // ── Loader steps ─────────────────────────────────────────────────────────────
+  // ── Loader steps ──────────────────────────────────────────────────────────
   const STEP_CONFIG = [
-    { key: 'upload',  label: 'Uploading file…',          pct: 15  },
-    { key: 'analyze', label: 'Analyzing log structure…',  pct: 42  },
-    { key: 'regex',   label: 'Matching regex patterns…',  pct: 64  },
-    { key: 'parse',   label: 'Structuring log entries…',  pct: 86  },
-    { key: 'done',    label: 'Done ✓',                    pct: 100 },
+    { key: 'upload',  label: 'Uploading file…',         pct: 15  },
+    { key: 'analyze', label: 'Analyzing log structure…', pct: 42  },
+    { key: 'regex',   label: 'Matching regex patterns…', pct: 64  },
+    { key: 'parse',   label: 'Structuring log entries…', pct: 86  },
+    { key: 'done',    label: 'Done ✓',                   pct: 100 },
   ];
   const STEP_KEYS = STEP_CONFIG.map(s => s.key);
 
@@ -232,13 +285,13 @@
     });
   }
 
-  // ── Button aria-disabled sync ────────────────────────────────────────────────
+  // ── Button aria-disabled sync ─────────────────────────────────────────────
   function setParseBtn(enabled) {
     parseBtn.disabled = !enabled;
     parseBtn.setAttribute('aria-disabled', String(!enabled));
   }
 
-  // ── File utilities ────────────────────────────────────────────────────────────
+  // ── File utilities ────────────────────────────────────────────────────────
   function formatBytes(bytes) {
     if (bytes < 1024)    return `${bytes} B`;
     if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -281,7 +334,7 @@
     setParseBtn(false);
 
     document.getElementById('stats-section')?.setAttribute('hidden', '');
-    document.getElementById('error-panel')?.setAttribute('hidden', '');   // ← fix: hide stale error
+    document.getElementById('error-panel')?.setAttribute('hidden', '');
 
     const exportBtn = document.getElementById('export-btn');
     if (exportBtn) {
@@ -297,7 +350,7 @@
     document.getElementById('empty-state')?.removeAttribute('hidden');
   }
 
-  // ── Event wiring ──────────────────────────────────────────────────────────────
+  // ── Event wiring ──────────────────────────────────────────────────────────
   dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
   dropZone.addEventListener('dragleave', e => { if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drag-over'); });
   dropZone.addEventListener('drop',      e => { e.preventDefault(); dropZone.classList.remove('drag-over'); const f = e.dataTransfer.files[0]; if (f) setFile(f); });
@@ -315,7 +368,7 @@
 
   parseBtn.addEventListener('click', () => { if (selectedFile) uploadAndParse(selectedFile); });
 
-  // ── Core upload ───────────────────────────────────────────────────────────────
+  // ── Core upload ───────────────────────────────────────────────────────────
   async function uploadAndParse(file) {
     abortController?.abort();
     abortController = new AbortController();
@@ -375,7 +428,7 @@
     handleSuccess(data, file.name);
   }
 
-  // ── Success ───────────────────────────────────────────────────────────────────
+  // ── Success ───────────────────────────────────────────────────────────────
   function handleSuccess(data, filename) {
     setParseBtn(true);
     hideLoaderOverlay();
@@ -386,7 +439,6 @@
 
     updateStats(data, filename);
 
-    // Scroll to results after DOM settles
     requestAnimationFrame(() => {
       document.getElementById('table-container')
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -437,7 +489,7 @@
     container.appendChild(s);
   }
 
-  // ── Error ──────────────────────────────────────────────────────────────────────
+  // ── Error ─────────────────────────────────────────────────────────────────
   function handleError(message) {
     clearProgressTimers();
     hideLoaderOverlay();
@@ -453,11 +505,11 @@
     window.toastNotify(message, 'error', 6000);
   }
 
-  // ── Utility ────────────────────────────────────────────────────────────────────
+  // ── Utility ───────────────────────────────────────────────────────────────
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  // ── Initialise ────────────────────────────────────────────────────────────────
+  // ── Initialise ────────────────────────────────────────────────────────────
   createLoaderOverlay();
-  startHealthCheck();      // ← real-time backend status begins here
+  startHealthCheck();
 
 })();

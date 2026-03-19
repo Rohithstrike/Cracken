@@ -5,14 +5,8 @@
  * Dynamic columns: populated from backend `columns` or `fields` key.
  * Preview limit:   first 100 rows rendered in DOM by default.
  * Features:        sticky header, row search, copy-on-click,
- *                  column resize, semantic field colouring.
- *
- * Panel management:
- *   renderTable() → hides #empty-state, shows #table-container
- *   resetTable()  → hides #table-container, shows #empty-state
- *
- * The actual display:none enforcement for [hidden] on flex/grid
- * elements is handled in main.css with high-specificity rules.
+ *                  column resize, semantic field colouring,
+ *                  row-level CSV copy via index cell (matches cell-copy UX exactly).
  */
 
 (() => {
@@ -23,13 +17,13 @@
   const ACTION_FIELD = 'action';
 
   // ── DOM refs ────────────────────────────────────────────────────────────────
-  const tableHead     = document.getElementById('table-head');
-  const tableBody     = document.getElementById('table-body');
-  const tableInfo     = document.getElementById('table-info');
-  const tableSearch   = document.getElementById('table-search');
-  const rowCountLabel = document.getElementById('row-count-label');
-  const previewNotice = document.getElementById('preview-notice');
-  const emptyState    = document.getElementById('empty-state');
+  const tableHead      = document.getElementById('table-head');
+  const tableBody      = document.getElementById('table-body');
+  const tableInfo      = document.getElementById('table-info');
+  const tableSearch    = document.getElementById('table-search');
+  const rowCountLabel  = document.getElementById('row-count-label');
+  const previewNotice  = document.getElementById('preview-notice');
+  const emptyState     = document.getElementById('empty-state');
   const tableContainer = document.getElementById('table-container');
 
   let _columns  = [];
@@ -37,22 +31,14 @@
   let _filtered = [];
 
   // ── Public: render ──────────────────────────────────────────────────────────
-  /**
-   * Called by uploader.js after a successful API response.
-   * Hides the empty state, shows the table, populates with data.
-   */
   window.renderTable = function (data) {
     _columns  = data.columns || data.fields || [];
     _allRows  = Array.isArray(data.rows) ? data.rows : [];
     _filtered = _allRows;
 
-    // Hide empty state — CSS enforces display:none on [hidden]
-    // via the high-specificity rule added to main.css
     if (emptyState)     emptyState.setAttribute('hidden', '');
     if (tableContainer) {
       tableContainer.removeAttribute('hidden');
-      // Trigger fade-in on next frame so the class is applied
-      // after the element is visible
       requestAnimationFrame(() => tableContainer.classList.add('animate-in'));
     }
 
@@ -77,32 +63,25 @@
   };
 
   // ── Public: reset ────────────────────────────────────────────────────────────
-  /**
-   * Called by uploader.js when the user clears the file.
-   * Restores the empty state and clears all table content.
-   */
   window.resetTable = function () {
-    // Animate out before hiding
     if (tableContainer) {
       tableContainer.classList.remove('animate-in');
       tableContainer.setAttribute('hidden', '');
     }
     if (emptyState) {
       emptyState.removeAttribute('hidden');
-      // Small delay so the DOM settles before the fade runs
       requestAnimationFrame(() => emptyState.classList.add('animate-in'));
-      // Clean up the class after animation completes
       setTimeout(() => emptyState.classList.remove('animate-in'), 300);
     }
 
-    if (tableHead)     tableHead.innerHTML   = '';
-    if (tableBody)     tableBody.innerHTML   = '';
-    if (tableSearch)   tableSearch.value     = '';
-    if (tableInfo)     tableInfo.textContent = '';
+    if (tableHead)     tableHead.innerHTML       = '';
+    if (tableBody)     tableBody.innerHTML       = '';
+    if (tableSearch)   tableSearch.value         = '';
+    if (tableInfo)     tableInfo.textContent     = '';
     if (rowCountLabel) rowCountLabel.textContent = '';
 
-    _columns = [];
-    _allRows = [];
+    _columns  = [];
+    _allRows  = [];
     _filtered = [];
   };
 
@@ -111,13 +90,13 @@
     tableHead.innerHTML = '';
     const tr = document.createElement('tr');
 
-    // Row number column
+    // Row number header — tooltip hints the click-to-copy behaviour
     const thNum = document.createElement('th');
     thNum.className   = 'col-rownum';
     thNum.textContent = '#';
+    thNum.title       = 'Click a row number to copy that row';
     tr.appendChild(thNum);
 
-    // One <th> per dynamic column from backend response
     columns.forEach(col => {
       const th = document.createElement('th');
       th.textContent = col.replace(/_/g, ' ');
@@ -146,13 +125,10 @@
     visible.forEach((row, idx) => {
       const tr = document.createElement('tr');
 
-      // Row number cell
-      const tdNum = document.createElement('td');
-      tdNum.className   = 'col-rownum';
-      tdNum.textContent = idx + 1;
-      tr.appendChild(tdNum);
+      // ── Row index cell — click copies entire row ──────────────────────────
+      tr.appendChild(buildIndexCell(row, idx + 1));
 
-      // Data cells — one per dynamic column
+      // ── Data cells ────────────────────────────────────────────────────────
       _columns.forEach(col => {
         const td  = document.createElement('td');
         const val = row[col] != null ? String(row[col]) : '';
@@ -163,11 +139,11 @@
         colorField(td, col, val);
         td.appendChild(document.createTextNode(val));
 
-        // Copy-on-click hint
+        // Per-cell copy hint — existing feature, unchanged
         const hint = document.createElement('span');
         hint.className   = 'copy-hint';
         hint.textContent = 'copy';
-        hint.addEventListener('click', e => { e.stopPropagation(); copyCell(val, hint); });
+        hint.addEventListener('click', e => { e.stopPropagation(); copyToClipboard(val, hint); });
         td.appendChild(hint);
 
         tr.appendChild(td);
@@ -178,6 +154,113 @@
 
     tableBody.appendChild(frag);
     updateRowCount(rows.length, limit);
+  }
+
+  // ── Row index cell ─────────────────────────────────────────────────────────
+  //
+  // Reuses the EXACT same copy-hint element that per-cell copy uses.
+  // The hint is positioned identically — right-aligned inside the cell —
+  // so hover appearance is pixel-identical to the per-cell copy UX.
+  //
+  // On hover:  the existing .data-table tbody tr:hover td .copy-hint rule
+  //            reveals the hint automatically — no new CSS needed.
+  // On click:  copies the full row as a CSV line and shows the toast.
+
+  function buildIndexCell(row, displayIndex) {
+    const td = document.createElement('td');
+    td.className = 'col-rownum';
+
+    // Row number text node — sits to the left
+    td.appendChild(document.createTextNode(displayIndex));
+
+    // Reuse the existing copy-hint element verbatim.
+    // CSS already handles show/hide on tr:hover — no extra rules required.
+    const hint = document.createElement('span');
+    hint.className   = 'copy-hint';
+    hint.textContent = 'row';   // slightly different label to distinguish from cell copy
+    hint.title       = 'Copy row';
+
+    // Clicking the hint copies the row; propagation is stopped so the td
+    // click handler below does not also fire.
+    hint.addEventListener('click', e => {
+      e.stopPropagation();
+      copyRowToClipboard(row, hint);
+    });
+
+    td.appendChild(hint);
+
+    // Clicking anywhere on the index cell (outside the hint itself)
+    // also triggers row copy — the whole cell is the target.
+    td.style.cursor = 'pointer';
+    td.addEventListener('click', () => copyRowToClipboard(row, hint));
+
+    return td;
+  }
+
+  // ── Row CSV serialisation ──────────────────────────────────────────────────
+  //
+  // Produces a single CSV line from a row dict, respecting column order.
+  // RFC 4180: fields containing commas, double-quotes, or newlines are
+  // wrapped in double-quotes; internal double-quotes are escaped as "".
+
+  function rowToCSV(row) {
+    return _columns
+      .map(col => {
+        const val = row[col] != null ? String(row[col]) : '';
+        return /[,"\r\n]/.test(val)
+          ? '"' + val.replace(/"/g, '""') + '"'
+          : val;
+      })
+      .join(',');
+  }
+
+  // ── Clipboard: row ────────────────────────────────────────────────────────
+  //
+  // Mirrors copyToClipboard() exactly so the feedback is identical —
+  // the hint text changes momentarily, then reverts.
+
+  function copyRowToClipboard(row, hint) {
+    const csvLine = rowToCSV(row);
+    const original = hint.textContent;
+
+    navigator.clipboard.writeText(csvLine)
+      .then(() => {
+        // Same visual feedback used by per-cell copy
+        hint.textContent       = 'copied!';
+        hint.style.color       = 'var(--success)';
+        hint.style.borderColor = 'var(--success)';
+        setTimeout(() => {
+          hint.textContent       = original;
+          hint.style.color       = '';
+          hint.style.borderColor = '';
+        }, 1500);
+        window.toastNotify?.('Row copied', 'success', 1800);
+      })
+      .catch(() => {
+        window.toastNotify?.('Copy failed — clipboard unavailable', 'error', 2500);
+      });
+  }
+
+  // ── Clipboard: cell ───────────────────────────────────────────────────────
+  //
+  // Existing per-cell copy — unchanged.
+
+  function copyToClipboard(text, hint) {
+    const original = hint.textContent;
+
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        hint.textContent       = 'copied!';
+        hint.style.color       = 'var(--success)';
+        hint.style.borderColor = 'var(--success)';
+        setTimeout(() => {
+          hint.textContent       = original;
+          hint.style.color       = '';
+          hint.style.borderColor = '';
+        }, 1500);
+        window.toastNotify?.('Copied to clipboard', 'success', 1800);
+      })
+      .catch(() => window.toastNotify?.('Copy failed', 'error', 2500));
   }
 
   // ── Semantic field colouring ──────────────────────────────────────────────────
@@ -260,24 +343,6 @@
     rowCountLabel.textContent = total > shown
       ? `Showing first ${shown.toLocaleString()} of ${total.toLocaleString()} rows`
       : `${total.toLocaleString()} row${total !== 1 ? 's' : ''}`;
-  }
-
-  // ── Clipboard ─────────────────────────────────────────────────────────────────
-  function copyCell(text, hint) {
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        const orig = hint.textContent;
-        hint.textContent             = 'copied!';
-        hint.style.color             = 'var(--success)';
-        hint.style.borderColor       = 'var(--success)';
-        setTimeout(() => {
-          hint.textContent       = orig;
-          hint.style.color       = '';
-          hint.style.borderColor = '';
-        }, 1500);
-        window.toastNotify?.('Copied to clipboard', 'success', 1800);
-      })
-      .catch(() => window.toastNotify?.('Copy failed', 'error', 2500));
   }
 
 })();
