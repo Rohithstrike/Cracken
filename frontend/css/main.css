@@ -965,9 +965,10 @@ body {
 .data-table td[data-field="action"][data-val="Disconnected"] { color: var(--text-muted); }
 
 /* ── Copy hint ────────────────────────────────────────────────────────────── */
-.data-table td .copy-hint {
+/* Row-level copy hint — shown only in the index cell on row hover */
+.data-table td.col-rownum .copy-hint {
   position: absolute;
-  right: 8px; top: 50%;
+  right: 4px; top: 50%;
   transform: translateY(-50%);
   opacity: 0;
   transition: opacity var(--t-base);
@@ -982,7 +983,7 @@ body {
   white-space: nowrap;
 }
 
-.data-table tbody tr:hover td .copy-hint {
+.data-table tbody tr:hover td.col-rownum .copy-hint {
   opacity: 1;
   pointer-events: all;
   cursor: pointer;

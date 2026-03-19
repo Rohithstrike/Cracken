@@ -6,7 +6,10 @@
  * Preview limit:   first 100 rows rendered in DOM by default.
  * Features:        sticky header, row search, copy-on-click,
  *                  column resize, semantic field colouring,
- *                  row-level CSV copy via index cell (matches cell-copy UX exactly).
+ *                  row-level CSV copy via index cell.
+ *
+ * Per-cell copy hover has been intentionally removed.
+ * Row-level copy (click index cell) is the only copy mechanism.
  */
 
 (() => {
@@ -90,11 +93,10 @@
     tableHead.innerHTML = '';
     const tr = document.createElement('tr');
 
-    // Row number header — tooltip hints the click-to-copy behaviour
     const thNum = document.createElement('th');
     thNum.className   = 'col-rownum';
     thNum.textContent = '#';
-    thNum.title       = 'Click a row number to copy that row';
+    thNum.title       = 'Click a row number to copy that row as CSV';
     tr.appendChild(thNum);
 
     columns.forEach(col => {
@@ -125,26 +127,19 @@
     visible.forEach((row, idx) => {
       const tr = document.createElement('tr');
 
-      // ── Row index cell — click copies entire row ──────────────────────────
+      // Index cell — clicking copies the full row as CSV
       tr.appendChild(buildIndexCell(row, idx + 1));
 
-      // ── Data cells ────────────────────────────────────────────────────────
+      // Data cells — no copy hint, just clean value display
       _columns.forEach(col => {
         const td  = document.createElement('td');
         const val = row[col] != null ? String(row[col]) : '';
 
         td.dataset.field = col;
-        td.title         = val;
+        td.title         = val;          // native browser tooltip on long values
 
         colorField(td, col, val);
         td.appendChild(document.createTextNode(val));
-
-        // Per-cell copy hint — existing feature, unchanged
-        const hint = document.createElement('span');
-        hint.className   = 'copy-hint';
-        hint.textContent = 'copy';
-        hint.addEventListener('click', e => { e.stopPropagation(); copyToClipboard(val, hint); });
-        td.appendChild(hint);
 
         tr.appendChild(td);
       });
@@ -156,42 +151,38 @@
     updateRowCount(rows.length, limit);
   }
 
-  // ── Row index cell ─────────────────────────────────────────────────────────
+  // ── Row index cell — row-level copy trigger ───────────────────────────────
   //
-  // Reuses the EXACT same copy-hint element that per-cell copy uses.
-  // The hint is positioned identically — right-aligned inside the cell —
-  // so hover appearance is pixel-identical to the per-cell copy UX.
+  // The index cell is the sole copy affordance in the table.
+  // It reuses the existing .copy-hint element so hover appearance
+  // is driven entirely by the CSS already in main.css — no new rules needed.
   //
-  // On hover:  the existing .data-table tbody tr:hover td .copy-hint rule
-  //            reveals the hint automatically — no new CSS needed.
-  // On click:  copies the full row as a CSV line and shows the toast.
+  // Hover:  tr:hover .copy-hint rule reveals the label automatically.
+  // Click:  anywhere on the cell (or on the hint itself) copies the row.
 
   function buildIndexCell(row, displayIndex) {
     const td = document.createElement('td');
     td.className = 'col-rownum';
+    td.style.cursor = 'pointer';
 
-    // Row number text node — sits to the left
+    // Visible row number
     td.appendChild(document.createTextNode(displayIndex));
 
-    // Reuse the existing copy-hint element verbatim.
-    // CSS already handles show/hide on tr:hover — no extra rules required.
+    // Reuse .copy-hint — revealed by existing CSS on tr:hover,
+    // styled and animated identically to the former per-cell hints.
     const hint = document.createElement('span');
     hint.className   = 'copy-hint';
-    hint.textContent = 'row';   // slightly different label to distinguish from cell copy
-    hint.title       = 'Copy row';
+    hint.textContent = 'copy';
+    hint.title       = 'Copy row as CSV';
 
-    // Clicking the hint copies the row; propagation is stopped so the td
-    // click handler below does not also fire.
     hint.addEventListener('click', e => {
-      e.stopPropagation();
+      e.stopPropagation();           // prevent td click firing twice
       copyRowToClipboard(row, hint);
     });
 
     td.appendChild(hint);
 
-    // Clicking anywhere on the index cell (outside the hint itself)
-    // also triggers row copy — the whole cell is the target.
-    td.style.cursor = 'pointer';
+    // Clicking anywhere on the cell also triggers the copy
     td.addEventListener('click', () => copyRowToClipboard(row, hint));
 
     return td;
@@ -199,9 +190,9 @@
 
   // ── Row CSV serialisation ──────────────────────────────────────────────────
   //
-  // Produces a single CSV line from a row dict, respecting column order.
-  // RFC 4180: fields containing commas, double-quotes, or newlines are
-  // wrapped in double-quotes; internal double-quotes are escaped as "".
+  // Produces one CSV line from a row object, preserving column order.
+  // RFC 4180: fields with commas, double-quotes, or newlines are quoted;
+  // internal double-quotes are escaped as "".
 
   function rowToCSV(row) {
     return _columns
@@ -214,18 +205,12 @@
       .join(',');
   }
 
-  // ── Clipboard: row ────────────────────────────────────────────────────────
-  //
-  // Mirrors copyToClipboard() exactly so the feedback is identical —
-  // the hint text changes momentarily, then reverts.
-
+  // ── Clipboard: full row ───────────────────────────────────────────────────
   function copyRowToClipboard(row, hint) {
-    const csvLine = rowToCSV(row);
     const original = hint.textContent;
 
-    navigator.clipboard.writeText(csvLine)
+    navigator.clipboard.writeText(rowToCSV(row))
       .then(() => {
-        // Same visual feedback used by per-cell copy
         hint.textContent       = 'copied!';
         hint.style.color       = 'var(--success)';
         hint.style.borderColor = 'var(--success)';
@@ -239,28 +224,6 @@
       .catch(() => {
         window.toastNotify?.('Copy failed — clipboard unavailable', 'error', 2500);
       });
-  }
-
-  // ── Clipboard: cell ───────────────────────────────────────────────────────
-  //
-  // Existing per-cell copy — unchanged.
-
-  function copyToClipboard(text, hint) {
-    const original = hint.textContent;
-
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        hint.textContent       = 'copied!';
-        hint.style.color       = 'var(--success)';
-        hint.style.borderColor = 'var(--success)';
-        setTimeout(() => {
-          hint.textContent       = original;
-          hint.style.color       = '';
-          hint.style.borderColor = '';
-        }, 1500);
-        window.toastNotify?.('Copied to clipboard', 'success', 1800);
-      })
-      .catch(() => window.toastNotify?.('Copy failed', 'error', 2500));
   }
 
   // ── Semantic field colouring ──────────────────────────────────────────────────
