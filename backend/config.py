@@ -19,9 +19,16 @@ class Settings(BaseSettings):
 
     sample_line_count: int = 20
 
-    # 🔥 VirusTotal Configuration (NEW)
-    vt_api_key: str = ""
-    vt_cache_ttl_seconds: int = 3600  # cache duration in seconds (default: 1 hour)
+    # ── VirusTotal ────────────────────────────────────────────────────────────
+    # Place in .env:
+    #   VT_API_KEY=your_virustotal_enterprise_key
+    #   VT_CACHE_TTL_SECONDS=3600
+    #   MAX_VT_WORKERS=10
+    #   VT_ENABLED=true
+    vt_api_key:           str  = ""
+    vt_cache_ttl_seconds: int  = 3600   # 1 hour default
+    max_vt_workers:       int  = 10     # parallel threads for VT API calls
+    vt_enabled:           bool = False  # master switch — set true in .env
 
     class Config:
         env_file = ".env"
@@ -48,6 +55,11 @@ class Settings(BaseSettings):
     @property
     def is_development(self) -> bool:
         return self.app_env == "development"
+
+    @property
+    def vt_configured(self) -> bool:
+        """True only when VT is both enabled and has an API key."""
+        return self.vt_enabled and bool(self.vt_api_key)
 
 
 @lru_cache(maxsize=1)

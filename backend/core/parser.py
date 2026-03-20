@@ -41,6 +41,7 @@ class LogParser:
     - Coercing numeric fields from string to Int64
     - Reordering columns by security-analyst priority
     - Safe JSON serialisation including pandas NA values
+    - Optional VirusTotal enrichment (src_vt_reputation, dst_vt_reputation)
     """
 
     def build_dataframe(self, records: list[dict]) -> pd.DataFrame:
@@ -118,6 +119,48 @@ class LogParser:
             clean_rows.append(clean_row)
 
         return clean_rows
+
+    def enrich_with_vt(self, rows: list[dict]) -> list[dict]:
+        """
+        Appends src_vt_reputation and dst_vt_reputation to every row.
+
+        Called AFTER dataframe_to_json_rows() — operates on plain dicts,
+        not on the DataFrame, so no pandas types can interfere.
+
+        This is a pure pass-through when VT is disabled or unconfigured:
+        rows are returned unchanged except for the two new fields
+        (set to "unknown" in that case).
+
+        Design decisions:
+        - Isolated import: virustotal service is imported here to keep
+          the import optional — if the integrations package is absent,
+          all non-VT functionality still works.
+        - Never raises: all exceptions are caught inside enrich_rows().
+        - No DataFrame mutation: enrichment happens on the serialised
+          list, keeping build_dataframe() clean and testable in isolation.
+
+        Parameters
+        ----------
+        rows : list[dict]
+            Output of dataframe_to_json_rows().
+
+        Returns
+        -------
+        list[dict]
+            Same list with src_vt_reputation and dst_vt_reputation present
+            on every dict.
+        """
+        try:
+            from backend.integrations.virustotal.service import enrich_rows
+            return enrich_rows(rows)
+        except ImportError:
+            logger.warning(
+                "vt_enrichment_import_failed_integration_not_installed"
+            )
+            for row in rows:
+                row["src_vt_reputation"] = "unknown"
+                row["dst_vt_reputation"] = "unknown"
+            return rows
 
     # ── Private helpers ───────────────────────────────────────────────────────
 

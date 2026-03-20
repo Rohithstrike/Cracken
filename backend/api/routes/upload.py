@@ -83,8 +83,9 @@ async def upload_log_file(
                c. no match           → AI fallback → validate → save → use
         5. Apply         — extract fields from all lines
         6. Parse         — build typed, ordered DataFrame
-        7. Preview slice — if preview_only, cap rows at MAX_PREVIEW_ROWS
-        8. Respond       — JSON or CSV
+        7. VT enrichment — append src_vt_reputation and dst_vt_reputation
+        8. Preview slice — if preview_only, cap rows at MAX_PREVIEW_ROWS
+        9. Respond       — JSON or CSV
 
     AI fallback notes:
         - Only triggered when no pattern matches AND pattern_id is not given
@@ -92,6 +93,13 @@ async def upload_log_file(
         - Validates AI-generated regex before trusting it
         - Saves successful patterns to learned.json for future reuse
         - Requires Ollama running locally (or OpenAI/Claude configured in .env)
+
+    VT enrichment notes:
+        - Only runs when VT_ENABLED=true and VT_API_KEY is set in .env
+        - Deduplicates IPs before calling VT — one call per unique IP
+        - Results are cached per TTL set by VT_CACHE_TTL_SECONDS
+        - Never breaks the pipeline — sets "unknown" on any failure
+        - CSV export includes VT columns in full dataset
 
     Large file notes:
         - preview_only=true caps the response rows at MAX_PREVIEW_ROWS
@@ -166,12 +174,36 @@ async def upload_log_file(
         round(matched_count / total_processed, 4)
         if total_processed > 0 else 0.0
     )
-    columns = list(df.columns)
 
-    # rows = full parsed dataset, always computed first
-    rows          = _parser.dataframe_to_json_rows(df)
+    # rows = full parsed dataset, serialised to plain Python dicts.
+    # This must happen before VT enrichment because enrich_with_vt()
+    # operates on plain dicts, not on the DataFrame.
+    rows = _parser.dataframe_to_json_rows(df)
 
-    # Sliced dataset — only used by JSON when preview_only=True
+    # ── Step 8: VT enrichment ─────────────────────────────────────────────
+    # Appends src_vt_reputation + dst_vt_reputation to every row in-place.
+    #
+    # Key properties:
+    #   - Runs on the FULL rows list so CSV export always has VT columns.
+    #   - Deduplicates IPs internally — one VT call per unique IP regardless
+    #     of how many rows share that IP.
+    #   - Is a no-op (sets "unknown") when VT_ENABLED=false or no API key.
+    #   - Never raises — any failure returns rows unchanged except for the
+    #     two new fields being set to "unknown".
+    #
+    # Placement: after dataframe_to_json_rows() and BEFORE the preview
+    # slice so that both the JSON preview and the CSV export see VT data.
+    rows = _parser.enrich_with_vt(rows)
+
+    # Rebuild the columns list AFTER enrichment so the two new VT fields
+    # are included in the response columns array when VT is active.
+    # When VT is disabled enrich_with_vt() still appends the fields with
+    # value "unknown", so columns is always consistent with row content.
+    columns = list(rows[0].keys()) if rows else list(df.columns)
+
+    # ── Step 9: Preview slice ─────────────────────────────────────────────
+    # Sliced dataset — only used by JSON when preview_only=True.
+    # CSV always uses the full `rows` list (see Step 10).
     response_rows = rows[:MAX_PREVIEW_ROWS] if preview_only else rows
     is_preview    = preview_only and len(rows) > MAX_PREVIEW_ROWS
 
@@ -186,13 +218,15 @@ async def upload_log_file(
         unmatched=unmatched_count,
         match_rate=match_rate,
         preview_only=preview_only,
+        vt_columns_present="src_vt_reputation" in columns,
     )
 
-    # ── Step 8: Respond ───────────────────────────────────────────────────
+    # ── Step 10: Respond ──────────────────────────────────────────────────
 
     if format == ResponseFormat.csv:
-        # CSV always uses full rows — never the preview slice
-        csv_filename  = build_csv_filename(file.filename, matched_pattern["id"])
+        # CSV always uses full rows — never the preview slice.
+        # VT columns are included because enrichment ran on the full list.
+        csv_filename = build_csv_filename(file.filename, matched_pattern["id"])
         csv_bytes, csv_filename = records_to_csv(columns, rows, csv_filename)
         return csv_response(csv_bytes, csv_filename)
 
@@ -394,8 +428,6 @@ async def _run_ai_fallback(lines: list[str], filename: str) -> dict:
         ) from exc
 
     # ── Check 3: regex must match at least one sample line ────────────────
-    # Apply the compiled regex to the same sample used for generation.
-    # Clean lines the same way the engine does — skip blanks and # comments.
     clean_sample = [
         line.strip()
         for line in ai_sample
