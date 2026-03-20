@@ -3,6 +3,7 @@ from pydantic import field_validator
 from functools import lru_cache
 from typing import Literal
 
+
 class Settings(BaseSettings):
     app_env: Literal["development", "production", "testing"] = "development"
     log_level: str = "INFO"
@@ -17,6 +18,10 @@ class Settings(BaseSettings):
     claude_api_key: str = ""
 
     sample_line_count: int = 20
+
+    # 🔥 VirusTotal Configuration (NEW)
+    vt_api_key: str = ""
+    vt_cache_ttl_seconds: int = 3600  # cache duration in seconds (default: 1 hour)
 
     class Config:
         env_file = ".env"
@@ -44,8 +49,10 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         return self.app_env == "development"
 
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
 
 settings = get_settings()
