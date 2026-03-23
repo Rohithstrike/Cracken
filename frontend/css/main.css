@@ -1065,3 +1065,22 @@ body {
   font-size: 11px;
   margin-top: 4px;   /* adds breathing space */
 }
+
+/* ── Loader subtext — helper message on long-running stages (VT) ── */
+.loader-box .loader-subtext {
+  display: none;                 /* JS sets display:block on the VT step only */
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.65;
+  max-width: 300px;
+  margin-top: -4px;
+}
+
+/* ── Processing pill — neutral info colour, prevents false Offline ── */
+.status-pill.status--processing {
+  --status-color:  var(--info);
+  --status-bg:     var(--info-bg);
+  --status-border: var(--info-border);
+}

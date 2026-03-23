@@ -3,10 +3,14 @@
  * File selection, step-wise loader overlay, backend fetch, result handoff.
  * Real-time backend health check with failure-tolerance (3-strike system).
  *
- * Health state mapping:
+ * Health state mapping (only applied when NOT processing):
  *   failCount 0–1  → ONLINE   (single transient failure is ignored)
  *   failCount 2    → CHECKING (backend may be busy)
  *   failCount >= 3 → OFFLINE  (confirmed down)
+ *
+ * While a parse is in flight (_isProcessing = true):
+ *   Status pill is locked to "Processing…" — health results are tracked
+ *   internally but never written to the DOM until processing ends.
  */
 
 (() => {
@@ -42,12 +46,47 @@
   let loaderOverlay = null;
   let loaderBar     = null;
   let loaderStatus  = null;
+  let loaderSubtext = null;
   let loaderSteps   = null;
 
   let selectedFile    = null;
   let abortController = null;
 
-  // ── Toast ────────────────────────────────────────────────────────────────────
+  // ── Processing flag ───────────────────────────────────────────────────────
+  //
+  // _isProcessing = true  → a parse request is in flight.
+  //   The status pill is locked to "Processing…" regardless of what the
+  //   health check returns.  This prevents false "Offline" display while
+  //   the backend is busy with VT enrichment (which can take 30–60 s and
+  //   causes /health to respond slowly or not at all within HEALTH_TIMEOUT).
+  //
+  // _isProcessing = false → idle.
+  //   The status pill is driven normally by the health check state machine.
+
+  let _isProcessing = false;
+
+  function setProcessing(active) {
+    _isProcessing = active;
+
+    if (!statusPill || !statusLabelText) return;
+
+    if (active) {
+      // Lock pill to neutral "Processing…" — remove all health state classes
+      statusPill.classList.remove('status--offline', 'status--checking');
+      statusPill.classList.add('status--processing');
+      statusLabelText.textContent = 'Processing…';
+      statusPill.setAttribute('aria-label', 'Backend status: processing request');
+    } else {
+      // Release the lock and immediately repaint with the current health state.
+      // Setting _healthState to null forces applyHealthState() to do a fresh
+      // DOM write even if the resolved state has not changed since last time.
+      statusPill.classList.remove('status--processing');
+      _healthState = null;
+      applyHealthState(resolveHealthState());
+    }
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
   window.toastNotify = function (message, type = 'info', duration = 3500) {
     const container = document.getElementById('toast-container');
     if (!container) return;
@@ -68,55 +107,40 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // ── Health check ─────────────────────────────────────────────────────────────
+  // ── Health check ──────────────────────────────────────────────────────────
   //
   // State machine (failCount drives state, not raw success/failure):
   //
-  //   failCount 0–1  → 'online'   Single transient failure is silently absorbed.
-  //                                A brief network hiccup or a backend that is
-  //                                momentarily busy does not alarm the user.
+  //   failCount 0–1  → 'online'    Single transient failure silently absorbed.
+  //   failCount 2    → 'checking'  Backend under load — warn without panicking.
+  //   failCount >= 3 → 'offline'   Three consecutive failures: confirmed down.
   //
-  //   failCount 2    → 'checking'  Two consecutive failures suggest the backend
-  //                                is under load or slow — warn without panicking.
-  //
-  //   failCount >= 3 → 'offline'   Three consecutive failures confirm the backend
-  //                                is unreachable.
-  //
-  // On every success failCount resets to 0 immediately.
+  // IMPORTANT: applyHealthState() is a no-op while _isProcessing === true.
+  // The counter still advances so we have an accurate picture the moment
+  // processing finishes and the lock is released.
 
-  let _failCount   = 0;      // consecutive failed health requests
-  let _healthState = null;   // last applied state: 'online' | 'checking' | 'offline'
+  let _failCount   = 0;
+  let _healthState = null;   // 'online' | 'checking' | 'offline'
 
-  /**
-   * Maps the current failCount to the correct UI state string.
-   * This is the single source of truth for the state-transition rules.
-   */
   function resolveHealthState() {
     if (_failCount <= 1) return 'online';
     if (_failCount === 2) return 'checking';
     return 'offline';
   }
 
-  /**
-   * Applies a health state to the status pill.
-   * Skips all DOM work if the state has not changed — prevents flicker.
-   *
-   *   'online'   → green pill,  "Online",     pulse dot active
-   *   'checking' → amber pill,  "Checking…",  pulse dot active
-   *   'offline'  → red pill,    "Offline",    pulse dot stopped
-   */
   function applyHealthState(state) {
-    if (state === _healthState) return;   // nothing changed — skip DOM update
+    // Never touch the pill while processing — setProcessing() owns it then.
+    if (_isProcessing) return;
+
+    if (state === _healthState) return;   // no change — skip DOM write
     _healthState = state;
 
     if (!statusPill || !statusLabelText) return;
 
-    // Clear all state modifier classes before applying the new one
     statusPill.classList.remove('status--offline', 'status--checking');
 
     switch (state) {
       case 'online':
-        // Default CSS variables handle the green colour — no extra class needed
         statusLabelText.textContent = 'Online';
         statusPill.setAttribute('aria-label', 'Backend status: online');
         break;
@@ -135,10 +159,6 @@
     }
   }
 
-  /**
-   * Performs one health ping and updates _failCount accordingly.
-   * Calls applyHealthState() with the resolved state after every ping.
-   */
   async function checkHealth() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), HEALTH_TIMEOUT);
@@ -152,28 +172,95 @@
       });
       success = res.ok;
     } catch (_) {
-      // Network error or timeout — treated as failure
       success = false;
     } finally {
       clearTimeout(timer);
     }
 
-    if (success) {
-      _failCount = 0;          // reset strike counter on any successful response
-    } else {
-      _failCount += 1;         // increment strike counter on any failure
-    }
+    _failCount = success ? 0 : _failCount + 1;
 
-    // Resolve and apply the state derived from the current failCount
+    // applyHealthState is a no-op while _isProcessing=true — safe to always call.
     applyHealthState(resolveHealthState());
   }
 
   function startHealthCheck() {
-    checkHealth();                            // run immediately on page load
+    checkHealth();
     setInterval(checkHealth, HEALTH_INTERVAL);
   }
 
   // ── Loader overlay ────────────────────────────────────────────────────────
+  //
+  // Seven stages that accurately mirror the full backend pipeline.
+  // 'vt' is the critical addition — it stays active during the long-running
+  // VirusTotal enrichment and displays an explanatory subtext line.
+  //
+  // Stage keys and their short pill labels:
+  //   upload   → Upload
+  //   validate → Validate
+  //   detect   → Detect
+  //   parse    → Parse
+  //   vt       → VT Check
+  //   finalize → Finalize
+  //   done     → (no pill — completion state only)
+
+  const STEP_CONFIG = [
+    {
+      key:     'upload',
+      label:   'Uploading file…',
+      pct:     10,
+      subtext: '',
+    },
+    {
+      key:     'validate',
+      label:   'Validating file…',
+      pct:     22,
+      subtext: '',
+    },
+    {
+      key:     'detect',
+      label:   'Detecting log format…',
+      pct:     40,
+      subtext: '',
+    },
+    {
+      key:     'parse',
+      label:   'Parsing logs…',
+      pct:     60,
+      subtext: '',
+    },
+    {
+      key:     'vt',
+      label:   'VirusTotal threat check…',
+      pct:     82,
+      // Subtext shown only on this step to explain the expected delay.
+      subtext: 'This may take few minutes for large datasets.',
+    },
+    {
+      key:     'finalize',
+      label:   'Finalizing results…',
+      pct:     96,
+      subtext: '',
+    },
+    {
+      key:     'done',
+      label:   'Completed',
+      pct:     100,
+      subtext: '',
+    },
+  ];
+
+  const STEP_KEYS = STEP_CONFIG.map(s => s.key);
+
+  // Short labels used in the step pill breadcrumb row (excludes 'done')
+  const PILL_LABELS = {
+    upload:   'Upload',
+    validate: 'Analyze',
+    detect:   'Regex',
+    parse:    'Parse',
+    vt:       'VT',
+    finalize: 'Finalize',
+  };
+
   function createLoaderOverlay() {
     if (document.getElementById('loader-overlay')) return;
 
@@ -185,6 +272,15 @@
       contentArea.style.position = 'relative';
     }
 
+    // Build step pill HTML from STEP_CONFIG (exclude 'done' — it has no pill)
+    const pillSteps = STEP_CONFIG
+      .filter(s => s.key !== 'done')
+      .map((s, i, arr) => {
+        const pill = `<span class="lstep" data-step="${s.key}">${PILL_LABELS[s.key]}</span>`;
+        return i < arr.length - 1 ? pill + '<span class="lstep-sep">›</span>' : pill;
+      })
+      .join('');
+
     const overlay = document.createElement('div');
     overlay.id = 'loader-overlay';
     overlay.setAttribute('hidden', '');
@@ -195,16 +291,9 @@
         <div class="loader-track">
           <div class="loader-bar" id="overlay-bar"></div>
         </div>
-        <p class="loader-status" id="overlay-status">Initialising…</p>
-        <div class="loader-steps" id="overlay-steps">
-          <span class="lstep" data-step="upload">Uploading</span>
-          <span class="lstep-sep">›</span>
-          <span class="lstep" data-step="analyze">Analyzing</span>
-          <span class="lstep-sep">›</span>
-          <span class="lstep" data-step="regex">Regex</span>
-          <span class="lstep-sep">›</span>
-          <span class="lstep" data-step="parse">Parsing</span>
-        </div>
+        <p class="loader-status"  id="overlay-status">Initialising…</p>
+        <p class="loader-subtext" id="overlay-subtext"></p>
+        <div class="loader-steps" id="overlay-steps">${pillSteps}</div>
       </div>
     `;
     contentArea.appendChild(overlay);
@@ -212,19 +301,11 @@
     loaderOverlay = overlay;
     loaderBar     = overlay.querySelector('#overlay-bar');
     loaderStatus  = overlay.querySelector('#overlay-status');
+    loaderSubtext = overlay.querySelector('#overlay-subtext');
     loaderSteps   = overlay.querySelector('#overlay-steps');
   }
 
-  // ── Loader steps ──────────────────────────────────────────────────────────
-  const STEP_CONFIG = [
-    { key: 'upload',  label: 'Uploading file…',         pct: 15  },
-    { key: 'analyze', label: 'Analyzing log structure…', pct: 42  },
-    { key: 'regex',   label: 'Matching regex patterns…', pct: 64  },
-    { key: 'parse',   label: 'Structuring log entries…', pct: 86  },
-    { key: 'done',    label: 'Done ✓',                   pct: 100 },
-  ];
-  const STEP_KEYS = STEP_CONFIG.map(s => s.key);
-
+  // ── Loader step control ───────────────────────────────────────────────────
   let _progressTimers = [];
 
   function clearProgressTimers() {
@@ -235,20 +316,40 @@
   function resetLoader() {
     clearProgressTimers();
     if (!loaderBar) return;
-    loaderBar.style.transition = 'none';
-    loaderBar.style.width      = '0%';
-    loaderStatus.textContent   = 'Initialising…';
-    loaderSteps?.querySelectorAll('.lstep').forEach(el =>
-      el.classList.remove('active', 'done')
-    );
+    loaderBar.style.transition  = 'none';
+    loaderBar.style.width       = '0%';
+    loaderStatus.textContent    = 'Initialising…';
+    if (loaderSubtext) {
+      loaderSubtext.textContent   = '';
+      loaderSubtext.style.display = 'none';
+    }
+    loaderSteps?.querySelectorAll('.lstep')
+      .forEach(el => el.classList.remove('active', 'done'));
     requestAnimationFrame(() => { loaderBar.style.transition = ''; });
   }
 
   function activateStep(key) {
     const cfg = STEP_CONFIG.find(s => s.key === key);
     if (!cfg || !loaderBar) return;
+
+    // Main status text
     loaderStatus.textContent = cfg.label;
+
+    // Progress bar
     loaderBar.style.width = Math.min(100, cfg.pct) + '%';
+
+    // Subtext — only visible on steps that define one (currently only 'vt')
+    if (loaderSubtext) {
+      if (cfg.subtext) {
+        loaderSubtext.textContent   = cfg.subtext;
+        loaderSubtext.style.display = 'block';
+      } else {
+        loaderSubtext.textContent   = '';
+        loaderSubtext.style.display = 'none';
+      }
+    }
+
+    // Step pill states: done (✔) / active (🔄) / pending (○)
     loaderSteps?.querySelectorAll('.lstep').forEach(el => {
       const sIdx = STEP_KEYS.indexOf(el.dataset.step);
       const cIdx = STEP_KEYS.indexOf(key);
@@ -275,11 +376,31 @@
     });
   }
 
+  // ── Pre-fetch stage schedule ───────────────────────────────────────────────
+  //
+  // ALL stages up to and including 'vt' are timer-driven so the UI accurately
+  // reflects the backend pipeline BEFORE fetch resolves.
+  //
+  // Timing rationale:
+  //   upload   →    0 ms  immediate on click
+  //   validate →  200 ms  fast server-side validation
+  //   detect   →  600 ms  format detection
+  //   parse    → 1200 ms  log parsing
+  //   vt       → 2000 ms  ← KEY FIX: VT stage is shown here, well before
+  //                          fetch resolves, and remains active for the full
+  //                          60–90 s VT enrichment window while fetch is open.
+  //
+  // 'finalize' and 'done' are NOT scheduled here — they are triggered
+  // programmatically from the fetch lifecycle after the response arrives,
+  // so they always reflect real completion timing.
+
   function schedulePreFetchSteps() {
     [
-      { key: 'upload',  delay: 0    },
-      { key: 'analyze', delay: 900  },
-      { key: 'regex',   delay: 1900 },
+      { key: 'upload',   delay: 0    },
+      { key: 'validate', delay: 200  },
+      { key: 'detect',   delay: 600  },
+      { key: 'parse',    delay: 1200 },
+      { key: 'vt',       delay: 2000 },  // ← VT activated before fetch resolves
     ].forEach(({ key, delay }) => {
       _progressTimers.push(setTimeout(() => activateStep(key), delay));
     });
@@ -332,6 +453,7 @@
     fileInput.value = '';
     fileInfoCard.setAttribute('hidden', '');
     setParseBtn(false);
+    setProcessing(false);   // release processing lock if clear happens mid-parse
 
     document.getElementById('stats-section')?.setAttribute('hidden', '');
     document.getElementById('error-panel')?.setAttribute('hidden', '');
@@ -374,8 +496,23 @@
     abortController = new AbortController();
     setParseBtn(false);
 
+    // Lock status pill to "Processing…" before any async work begins.
+    // This is the single line that fixes the false-Offline bug — the pill
+    // will not change again until setProcessing(false) is called.
+    setProcessing(true);
+
     resetLoader();
     showLoaderOverlay();
+
+    // ── Schedule all pre-fetch stages including VT ─────────────────────────
+    //
+    // upload → validate → detect → parse → vt are all timer-driven.
+    // This ensures "VirusTotal threat check…" appears on screen BEFORE
+    // fetch resolves, accurately reflecting the backend's VT enrichment
+    // step that runs during the open request window (up to 60–90 s).
+    //
+    // 'finalize' and 'done' are NOT scheduled here — they fire
+    // programmatically once the fetch response is received.
     schedulePreFetchSteps();
 
     const formData = new FormData();
@@ -389,14 +526,25 @@
         signal: abortController.signal,
       });
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      if (err.name === 'AbortError') {
+        // User cancelled — release processing lock silently
+        clearProgressTimers();
+        setProcessing(false);
+        return;
+      }
       clearProgressTimers();
+      setProcessing(false);
       handleError(`Cannot reach server at ${API_BASE}. Is the backend running?`);
       return;
     }
 
+    // ── Server has responded ───────────────────────────────────────────────
+    // Cancel any remaining pre-fetch timers (handles the edge case where
+    // fetch resolved faster than the vt timer fired — e.g. tiny file, no
+    // VT hits, or VT disabled on the backend).
+    // Do NOT call activateStep('vt') here — it is already owned by the
+    // timer schedule above. Proceed directly to error check or finalize.
     clearProgressTimers();
-    activateStep('parse');
 
     if (!response.ok) {
       let detail = `Server error ${response.status}`;
@@ -404,27 +552,38 @@
         const b = await response.json();
         detail = b.detail || b.message || detail;
       } catch (_) {}
+      setProcessing(false);
       handleError(detail);
       return;
     }
+
+    // ── Reading JSON body ──────────────────────────────────────────────────
+    // Move to 'finalize' while we deserialise the response body.
+    activateStep('finalize');
 
     let data;
     try {
       data = await response.json();
     } catch (_) {
+      setProcessing(false);
       handleError('Server returned an invalid response (not JSON).');
       return;
     }
 
+    // ── All data received ──────────────────────────────────────────────────
     activateStep('done');
-    await sleep(420);
+    await sleep(480);   // brief pause so user can read "✅ Completed"
 
     const rows = Array.isArray(data.rows) ? data.rows : [];
     if (rows.length === 0) {
+      setProcessing(false);
       handleError('No log entries were extracted. The file may use an unrecognised format or all lines were unmatched.');
       return;
     }
 
+    // Release the processing lock before handing off — pill reverts to
+    // whatever the health check state machine last resolved.
+    setProcessing(false);
     handleSuccess(data, file.name);
   }
 
@@ -492,6 +651,7 @@
   // ── Error ─────────────────────────────────────────────────────────────────
   function handleError(message) {
     clearProgressTimers();
+    setProcessing(false);   // always release lock on any error path
     hideLoaderOverlay();
     setParseBtn(true);
 
