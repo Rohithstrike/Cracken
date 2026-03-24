@@ -80,7 +80,8 @@ async def upload_log_file(
         4. Select pattern:
                a. pattern_id provided → load from store directly
                b. auto-detect        → score ALL lines
-               c. no match           → AI fallback → validate → save → use
+               c. KV detection       → parse as key=value if confident   ← NEW
+               d. no match           → AI fallback → validate → save → use
         5. Apply         — extract fields from all lines
         6. Parse         — build typed, ordered DataFrame
         7. VT enrichment — append src_vt_reputation and dst_vt_reputation
@@ -89,10 +90,18 @@ async def upload_log_file(
 
     AI fallback notes:
         - Only triggered when no pattern matches AND pattern_id is not given
+          AND the file is not detected as KV format
         - Sanitizes and masks log lines before sending to AI
         - Validates AI-generated regex before trusting it
         - Saves successful patterns to learned.json for future reuse
         - Requires Ollama running locally (or OpenAI/Claude configured in .env)
+
+    KV parser notes:
+        - Triggered when regex detection fails and file contains key=value lines
+        - No AI call, no regex dependency — pure structural parsing
+        - Normalises vendor field names (remip→src_ip, srccountry→src_country…)
+        - src_ip is extracted so VT enrichment works automatically
+        - Never saves a pattern — KV detection is stateless and always re-runs
 
     VT enrichment notes:
         - Only runs when VT_ENABLED=true and VT_API_KEY is set in .env
@@ -144,14 +153,27 @@ async def upload_log_file(
         )
 
     # ── Step 4: Select pattern ────────────────────────────────────────────
-    matched_pattern = await _select_pattern(
+    #
+    # _select_pattern now returns a (pattern, records) tuple.
+    #
+    # For the regex and AI paths:   records=None  (apply_pattern runs below)
+    # For the KV path:              records is pre-populated by kv_parser
+    #
+    # This avoids running apply_pattern() on a KV file (it has no regex)
+    # while keeping Steps 5–10 completely unchanged.
+
+    matched_pattern, kv_records = await _select_pattern(
         lines=lines,
         pattern_id=pattern_id,
         filename=file.filename,
     )
 
     # ── Step 5: Apply ─────────────────────────────────────────────────────
-    records = _engine.apply_pattern(matched_pattern, lines)
+    # For KV files the records are already built — skip apply_pattern().
+    if kv_records is not None:
+        records = kv_records
+    else:
+        records = _engine.apply_pattern(matched_pattern, lines)
 
     # ── Step 6: Parse ─────────────────────────────────────────────────────
     df        = _parser.build_dataframe(records)
@@ -190,6 +212,9 @@ async def upload_log_file(
     #   - Is a no-op (sets "unknown") when VT_ENABLED=false or no API key.
     #   - Never raises — any failure returns rows unchanged except for the
     #     two new fields being set to "unknown".
+    #
+    # For KV logs: src_ip is normalised by kv_parser so VT enrichment
+    # picks it up automatically — no special handling required.
     #
     # Placement: after dataframe_to_json_rows() and BEFORE the preview
     # slice so that both the JSON preview and the CSV export see VT data.
@@ -264,24 +289,33 @@ async def _select_pattern(
     lines: list[str],
     pattern_id: Optional[str],
     filename: str,
-) -> dict:
+) -> tuple[dict, Optional[list[dict]]]:
     """
     Resolves the pattern to use for parsing.
 
     Priority:
         1. pattern_id provided → load from store, raise 404 if not found
         2. Auto-detect         → score all lines against pattern library
-        3. AI fallback         → generate, validate, save, return
+        3. KV detection        → parse as key=value structured log    ← NEW
+        4. AI fallback         → generate, validate, save, return
 
-    Returns the winning pattern dict.
+    Returns
+    -------
+    tuple[dict, Optional[list[dict]]]
+        (pattern, records)
+
+        For paths 1, 2, 4:  records=None  → caller runs apply_pattern()
+        For path 3 (KV):    records is the pre-built list of dicts from
+                            kv_parser — caller skips apply_pattern()
+
     Raises HTTPException on all failure paths.
     """
 
     # ── Path A: manual pattern selection ─────────────────────────────────
     if pattern_id:
-        return _load_pattern_by_id(pattern_id)
+        return _load_pattern_by_id(pattern_id), None
 
-    # ── Path B: automatic detection ───────────────────────────────────────
+    # ── Path B: automatic regex detection ────────────────────────────────
     logger.info(
         "starting_pattern_detection",
         filename=filename,
@@ -291,10 +325,59 @@ async def _select_pattern(
     matched_pattern = _engine.detect_pattern(lines)
 
     if matched_pattern:
-        return matched_pattern
+        return matched_pattern, None
 
-    # ── Path C: AI fallback ───────────────────────────────────────────────
-    return await _run_ai_fallback(lines, filename)
+    # ── Path C: KV detection ──────────────────────────────────────────────
+    #
+    # Runs BEFORE AI fallback.  If the file is a well-structured KV log
+    # (key=value pairs, >= 60 % of lines match) we parse it directly.
+    # This avoids an unnecessary AI call and produces better field names.
+    #
+    # The KV path returns pre-built records so the caller can skip
+    # apply_pattern() (which expects a regex-based pattern dict).
+    kv_result = _run_kv_path(lines, filename)
+    if kv_result is not None:
+        return kv_result  # (pattern, records)
+
+    # ── Path D: AI fallback ───────────────────────────────────────────────
+    pattern = await _run_ai_fallback(lines, filename)
+    return pattern, None
+
+
+def _run_kv_path(
+    lines: list[str],
+    filename: str,
+) -> Optional[tuple[dict, list[dict]]]:
+    """
+    Attempts to parse the file as a KV-structured log.
+
+    Returns
+    -------
+    tuple[dict, list[dict]]
+        (synthetic_pattern, records) if KV format is detected.
+    None
+        If the file does not look like KV — caller falls through to AI.
+    """
+    from backend.core.kv_parser import is_kv_log, parse_kv_lines, build_kv_pattern
+    from backend.core.ingestion import sample_lines as _sample_lines
+
+    # Use the same sample_lines helper used by the AI path for consistency.
+    sample = _sample_lines(lines)
+
+    if not is_kv_log(sample):
+        return None
+
+    # KV format confirmed — parse the full file, not just the sample.
+    logger.info(
+        "kv_path_selected",
+        filename=filename,
+        total_lines=len(lines),
+    )
+
+    records = parse_kv_lines(lines)
+    pattern = build_kv_pattern(filename)
+
+    return pattern, records
 
 
 def _load_pattern_by_id(pattern_id: str) -> dict:
