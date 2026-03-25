@@ -1,4 +1,5 @@
 import pandas as pd
+from typing import List, Dict, Optional, Tuple
 from backend.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -120,16 +121,28 @@ class LogParser:
 
         return clean_rows
 
-    def enrich_with_vt(self, rows: list[dict]) -> list[dict]:
+    def enrich_with_vt(
+        self,
+        rows: list[dict],
+    ) -> Tuple[List[Dict], Optional[Dict]]:
         """
         Appends src_vt_reputation and dst_vt_reputation to every row.
 
         Called AFTER dataframe_to_json_rows() — operates on plain dicts,
         not on the DataFrame, so no pandas types can interfere.
 
+        Return value changed to a tuple so callers can surface VT
+        statistics in the API response:
+
+            (enriched_rows, vt_stats)
+
+        vt_stats is either:
+            {"unique_ips": int, "api_calls": int}  — when VT ran
+            None                                    — when VT was skipped
+
         This is a pure pass-through when VT is disabled or unconfigured:
-        rows are returned unchanged except for the two new fields
-        (set to "unknown" in that case).
+        rows are returned unchanged except for the two new reputation
+        fields (set to "unknown"), and vt_stats is None.
 
         Design decisions:
         - Isolated import: virustotal service is imported here to keep
@@ -146,13 +159,14 @@ class LogParser:
 
         Returns
         -------
-        list[dict]
-            Same list with src_vt_reputation and dst_vt_reputation present
-            on every dict.
+        tuple[list[dict], dict | None]
+            (enriched_rows, vt_stats)
         """
         try:
             from backend.integrations.virustotal.service import enrich_rows
-            return enrich_rows(rows)
+            # service.enrich_rows() now returns (rows, vt_stats)
+            enriched_rows, vt_stats = enrich_rows(rows)
+            return enriched_rows, vt_stats
         except ImportError:
             logger.warning(
                 "vt_enrichment_import_failed_integration_not_installed"
@@ -160,7 +174,7 @@ class LogParser:
             for row in rows:
                 row["src_vt_reputation"] = "unknown"
                 row["dst_vt_reputation"] = "unknown"
-            return rows
+            return rows, None
 
     # ── Private helpers ───────────────────────────────────────────────────────
 

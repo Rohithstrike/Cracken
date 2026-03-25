@@ -71,17 +71,13 @@
     if (!statusPill || !statusLabelText) return;
 
     if (active) {
-      // Lock pill to neutral "Processing…" — remove all health state classes
       statusPill.classList.remove('status--offline', 'status--checking');
       statusPill.classList.add('status--processing');
       statusLabelText.textContent = 'Processing…';
       statusPill.setAttribute('aria-label', 'Backend status: processing request');
     } else {
-      // Release the lock and immediately repaint with the current health state.
-      // Setting _healthState to null forces applyHealthState() to do a fresh
-      // DOM write even if the resolved state has not changed since last time.
       statusPill.classList.remove('status--processing');
-      _healthState = null;
+      _healthState = null;   // force a fresh DOM write on next apply
       applyHealthState(resolveHealthState());
     }
   }
@@ -115,7 +111,7 @@
   //   failCount 2    → 'checking'  Backend under load — warn without panicking.
   //   failCount >= 3 → 'offline'   Three consecutive failures: confirmed down.
   //
-  // IMPORTANT: applyHealthState() is a no-op while _isProcessing === true.
+  // applyHealthState() is a no-op while _isProcessing === true.
   // The counter still advances so we have an accurate picture the moment
   // processing finishes and the lock is released.
 
@@ -129,33 +125,25 @@
   }
 
   function applyHealthState(state) {
-    // Never touch the pill while processing — setProcessing() owns it then.
-    if (_isProcessing) return;
-
-    if (state === _healthState) return;   // no change — skip DOM write
+    if (_isProcessing) return;           // locked — processing owns the pill
+    if (state === _healthState) return;  // no change — skip DOM write
     _healthState = state;
 
     if (!statusPill || !statusLabelText) return;
 
     statusPill.classList.remove('status--offline', 'status--checking');
 
-    switch (state) {
-      case 'online':
-        statusLabelText.textContent = 'Online';
-        statusPill.setAttribute('aria-label', 'Backend status: online');
-        break;
-
-      case 'checking':
-        statusPill.classList.add('status--checking');
-        statusLabelText.textContent = 'Checking…';
-        statusPill.setAttribute('aria-label', 'Backend status: checking');
-        break;
-
-      case 'offline':
-        statusPill.classList.add('status--offline');
-        statusLabelText.textContent = 'Offline';
-        statusPill.setAttribute('aria-label', 'Backend status: offline');
-        break;
+    if (state === 'online') {
+      statusLabelText.textContent = 'Online';
+      statusPill.setAttribute('aria-label', 'Backend status: online');
+    } else if (state === 'checking') {
+      statusPill.classList.add('status--checking');
+      statusLabelText.textContent = 'Checking…';
+      statusPill.setAttribute('aria-label', 'Backend status: checking');
+    } else {
+      statusPill.classList.add('status--offline');
+      statusLabelText.textContent = 'Offline';
+      statusPill.setAttribute('aria-label', 'Backend status: offline');
     }
   }
 
@@ -178,8 +166,6 @@
     }
 
     _failCount = success ? 0 : _failCount + 1;
-
-    // applyHealthState is a no-op while _isProcessing=true — safe to always call.
     applyHealthState(resolveHealthState());
   }
 
@@ -191,67 +177,26 @@
   // ── Loader overlay ────────────────────────────────────────────────────────
   //
   // Seven stages that accurately mirror the full backend pipeline.
-  // 'vt' is the critical addition — it stays active during the long-running
-  // VirusTotal enrichment and displays an explanatory subtext line.
-  //
-  // Stage keys and their short pill labels:
-  //   upload   → Upload
-  //   validate → Validate
-  //   detect   → Detect
-  //   parse    → Parse
-  //   vt       → VT Check
-  //   finalize → Finalize
-  //   done     → (no pill — completion state only)
+  // 'vt' stays active during VirusTotal enrichment (60–90 s) and shows
+  // an explanatory subtext.  'finalize' and 'done' fire after fetch resolves.
 
   const STEP_CONFIG = [
-    {
-      key:     'upload',
-      label:   'Uploading file…',
-      pct:     10,
-      subtext: '',
-    },
-    {
-      key:     'validate',
-      label:   'Validating file…',
-      pct:     22,
-      subtext: '',
-    },
-    {
-      key:     'detect',
-      label:   'Detecting log format…',
-      pct:     40,
-      subtext: '',
-    },
-    {
-      key:     'parse',
-      label:   'Parsing logs…',
-      pct:     60,
-      subtext: '',
-    },
+    { key: 'upload',   label: 'Uploading file…',           pct: 10,  subtext: '' },
+    { key: 'validate', label: 'Validating file…',          pct: 22,  subtext: '' },
+    { key: 'detect',   label: 'Detecting log format…',     pct: 40,  subtext: '' },
+    { key: 'parse',    label: 'Parsing logs…',             pct: 60,  subtext: '' },
     {
       key:     'vt',
       label:   'VirusTotal threat check…',
       pct:     82,
-      // Subtext shown only on this step to explain the expected delay.
-      subtext: 'This may take few minutes for large datasets.',
+      subtext: 'This may take a few minutes for large datasets.',
     },
-    {
-      key:     'finalize',
-      label:   'Finalizing results…',
-      pct:     96,
-      subtext: '',
-    },
-    {
-      key:     'done',
-      label:   'Completed',
-      pct:     100,
-      subtext: '',
-    },
+    { key: 'finalize', label: 'Finalizing results…',       pct: 96,  subtext: '' },
+    { key: 'done',     label: 'Completed',                 pct: 100, subtext: '' },
   ];
 
   const STEP_KEYS = STEP_CONFIG.map(s => s.key);
 
-  // Short labels used in the step pill breadcrumb row (excludes 'done')
   const PILL_LABELS = {
     upload:   'Upload',
     validate: 'Analyze',
@@ -272,7 +217,6 @@
       contentArea.style.position = 'relative';
     }
 
-    // Build step pill HTML from STEP_CONFIG (exclude 'done' — it has no pill)
     const pillSteps = STEP_CONFIG
       .filter(s => s.key !== 'done')
       .map((s, i, arr) => {
@@ -332,13 +276,9 @@
     const cfg = STEP_CONFIG.find(s => s.key === key);
     if (!cfg || !loaderBar) return;
 
-    // Main status text
     loaderStatus.textContent = cfg.label;
+    loaderBar.style.width    = Math.min(100, cfg.pct) + '%';
 
-    // Progress bar
-    loaderBar.style.width = Math.min(100, cfg.pct) + '%';
-
-    // Subtext — only visible on steps that define one (currently only 'vt')
     if (loaderSubtext) {
       if (cfg.subtext) {
         loaderSubtext.textContent   = cfg.subtext;
@@ -349,7 +289,6 @@
       }
     }
 
-    // Step pill states: done (✔) / active (🔄) / pending (○)
     loaderSteps?.querySelectorAll('.lstep').forEach(el => {
       const sIdx = STEP_KEYS.indexOf(el.dataset.step);
       const cIdx = STEP_KEYS.indexOf(key);
@@ -378,21 +317,11 @@
 
   // ── Pre-fetch stage schedule ───────────────────────────────────────────────
   //
-  // ALL stages up to and including 'vt' are timer-driven so the UI accurately
-  // reflects the backend pipeline BEFORE fetch resolves.
+  // upload → validate → detect → parse → vt are all timer-driven so "VT
+  // threat check…" appears BEFORE fetch resolves, covering the 60–90 s
+  // VT enrichment window while the request is still open.
   //
-  // Timing rationale:
-  //   upload   →    0 ms  immediate on click
-  //   validate →  200 ms  fast server-side validation
-  //   detect   →  600 ms  format detection
-  //   parse    → 1200 ms  log parsing
-  //   vt       → 2000 ms  ← KEY FIX: VT stage is shown here, well before
-  //                          fetch resolves, and remains active for the full
-  //                          60–90 s VT enrichment window while fetch is open.
-  //
-  // 'finalize' and 'done' are NOT scheduled here — they are triggered
-  // programmatically from the fetch lifecycle after the response arrives,
-  // so they always reflect real completion timing.
+  // 'finalize' and 'done' fire programmatically after fetch resolves.
 
   function schedulePreFetchSteps() {
     [
@@ -400,13 +329,13 @@
       { key: 'validate', delay: 200  },
       { key: 'detect',   delay: 600  },
       { key: 'parse',    delay: 1200 },
-      { key: 'vt',       delay: 2000 },  // ← VT activated before fetch resolves
+      { key: 'vt',       delay: 2000 },
     ].forEach(({ key, delay }) => {
       _progressTimers.push(setTimeout(() => activateStep(key), delay));
     });
   }
 
-  // ── Button aria-disabled sync ─────────────────────────────────────────────
+  // ── Button sync ───────────────────────────────────────────────────────────
   function setParseBtn(enabled) {
     parseBtn.disabled = !enabled;
     parseBtn.setAttribute('aria-disabled', String(!enabled));
@@ -453,7 +382,7 @@
     fileInput.value = '';
     fileInfoCard.setAttribute('hidden', '');
     setParseBtn(false);
-    setProcessing(false);   // release processing lock if clear happens mid-parse
+    setProcessing(false);
 
     document.getElementById('stats-section')?.setAttribute('hidden', '');
     document.getElementById('error-panel')?.setAttribute('hidden', '');
@@ -495,24 +424,10 @@
     abortController?.abort();
     abortController = new AbortController();
     setParseBtn(false);
-
-    // Lock status pill to "Processing…" before any async work begins.
-    // This is the single line that fixes the false-Offline bug — the pill
-    // will not change again until setProcessing(false) is called.
     setProcessing(true);
 
     resetLoader();
     showLoaderOverlay();
-
-    // ── Schedule all pre-fetch stages including VT ─────────────────────────
-    //
-    // upload → validate → detect → parse → vt are all timer-driven.
-    // This ensures "VirusTotal threat check…" appears on screen BEFORE
-    // fetch resolves, accurately reflecting the backend's VT enrichment
-    // step that runs during the open request window (up to 60–90 s).
-    //
-    // 'finalize' and 'done' are NOT scheduled here — they fire
-    // programmatically once the fetch response is received.
     schedulePreFetchSteps();
 
     const formData = new FormData();
@@ -527,7 +442,6 @@
       });
     } catch (err) {
       if (err.name === 'AbortError') {
-        // User cancelled — release processing lock silently
         clearProgressTimers();
         setProcessing(false);
         return;
@@ -538,12 +452,6 @@
       return;
     }
 
-    // ── Server has responded ───────────────────────────────────────────────
-    // Cancel any remaining pre-fetch timers (handles the edge case where
-    // fetch resolved faster than the vt timer fired — e.g. tiny file, no
-    // VT hits, or VT disabled on the backend).
-    // Do NOT call activateStep('vt') here — it is already owned by the
-    // timer schedule above. Proceed directly to error check or finalize.
     clearProgressTimers();
 
     if (!response.ok) {
@@ -557,8 +465,6 @@
       return;
     }
 
-    // ── Reading JSON body ──────────────────────────────────────────────────
-    // Move to 'finalize' while we deserialise the response body.
     activateStep('finalize');
 
     let data;
@@ -570,9 +476,8 @@
       return;
     }
 
-    // ── All data received ──────────────────────────────────────────────────
     activateStep('done');
-    await sleep(480);   // brief pause so user can read "✅ Completed"
+    await sleep(480);
 
     const rows = Array.isArray(data.rows) ? data.rows : [];
     if (rows.length === 0) {
@@ -581,8 +486,6 @@
       return;
     }
 
-    // Release the processing lock before handing off — pill reverts to
-    // whatever the health check state machine last resolved.
     setProcessing(false);
     handleSuccess(data, file.name);
   }
@@ -607,6 +510,7 @@
     window.toastNotify(`Parsed ${count} log entries`, 'success', 3500);
   }
 
+  // ── Stats update ──────────────────────────────────────────────────────────
   function updateStats(data, filename) {
     document.getElementById('stats-section')?.removeAttribute('hidden');
 
@@ -616,6 +520,33 @@
     setText('stat-rate',
       data.match_rate != null ? `${(data.match_rate * 100).toFixed(1)}%` : '—'
     );
+
+    // ── VT stats ──────────────────────────────────────────────────────────
+    const vtStats      = data.vt_stats ?? null;
+    const vtUniqueCard = document.getElementById('stat-unique-ips')?.closest('.stat-card');
+    const vtCallsCard  = document.getElementById('stat-vt-calls')?.closest('.stat-card');
+
+    if (vtStats && typeof vtStats === 'object') {
+      const uniqueIps = Number(vtStats.unique_ips);
+      const apiCalls  = Number(vtStats.api_calls);
+
+      const elUniqueIps = document.getElementById('stat-unique-ips');
+      if (elUniqueIps) {
+        elUniqueIps.textContent = Number.isFinite(uniqueIps) ? uniqueIps.toLocaleString() : '—';
+      }
+
+      const elVtCalls = document.getElementById('stat-vt-calls');
+      if (elVtCalls) {
+        elVtCalls.textContent = Number.isFinite(apiCalls) ? apiCalls.toLocaleString() : '—';
+      }
+
+      vtUniqueCard?.removeAttribute('hidden');
+      vtCallsCard?.removeAttribute('hidden');
+    } else {
+      vtUniqueCard?.setAttribute('hidden', '');
+      vtCallsCard?.setAttribute('hidden', '');
+    }
+    // ── end VT stats ──────────────────────────────────────────────────────
 
     const metaTags = document.getElementById('meta-tags');
     if (metaTags) {
@@ -651,7 +582,7 @@
   // ── Error ─────────────────────────────────────────────────────────────────
   function handleError(message) {
     clearProgressTimers();
-    setProcessing(false);   // always release lock on any error path
+    setProcessing(false);
     hideLoaderOverlay();
     setParseBtn(true);
 

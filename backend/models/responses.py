@@ -44,6 +44,10 @@ class ParseResponse(BaseModel):
     rows: list[dict[str, Any]]
     unmatched_preview: list[str]
     message: str
+    # ── VT enrichment statistics ──────────────────────────────────────────
+    # None when VT is disabled, not configured, or no IPs were found.
+    # Present with {"unique_ips": int, "api_calls": int} when VT ran.
+    vt_stats: Optional[dict[str, int]] = None
 
 
 class ErrorResponse(BaseModel):

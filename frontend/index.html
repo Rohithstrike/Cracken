@@ -36,28 +36,27 @@
   <!-- Ambient grid background -->
   <div class="grid-overlay" aria-hidden="true"></div>
 
-  <!-- ── Toast notifications ─────────────────────────────────────────────── -->
+  <!-- Toast notifications -->
   <div id="toast-container" role="alert" aria-live="polite" aria-atomic="false"></div>
 
-  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <!-- Header -->
   <header class="site-header" role="banner">
     <div class="header-inner">
 
       <div class="brand">
-  <span class="brand-icon" aria-hidden="true">
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-      <rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-      <rect x="12" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-      <rect x="1" y="12" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-      <rect x="12" y="12" width="9" height="9" rx="1.5" fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
-    </svg>
-  </span>
-
-  <div class="brand-text">
-    <span class="brand-name">Cracken</span>
-    <span class="brand-subtitle">AI Log Intelligence Platform</span>
-  </div>
-</div>
+        <span class="brand-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <rect x="1" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="12" y="1" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="1" y="12" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="12" y="12" width="9" height="9" rx="1.5" fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </span>
+        <div class="brand-text">
+          <span class="brand-name">Cracken</span>
+          <span class="brand-subtitle">AI Log Intelligence Platform</span>
+        </div>
+      </div>
 
       <nav class="header-meta" aria-label="System status">
         <span
@@ -77,10 +76,10 @@
     </div>
   </header>
 
-  <!-- ── Main application shell ──────────────────────────────────────────── -->
+  <!-- Main application shell -->
   <main class="app-shell" role="main">
 
-    <!-- ── Sidebar ────────────────────────────────────────────────────── -->
+    <!-- Sidebar -->
     <aside class="sidebar" aria-label="Upload controls and parse results">
 
       <!-- Upload section -->
@@ -169,6 +168,8 @@
         </div>
 
         <div class="stat-grid" role="list" aria-label="Parse statistics">
+
+          <!-- Existing parse stats (unchanged) -->
           <div class="stat-card" role="listitem">
             <span class="stat-value" id="stat-total" aria-label="Total lines">—</span>
             <span class="stat-label">Total lines</span>
@@ -185,6 +186,19 @@
             <span class="stat-value" id="stat-rate" aria-label="Match rate">—</span>
             <span class="stat-label">Match rate</span>
           </div>
+
+          <!-- VT enrichment stats — same structure and classes as above -->
+          <!-- uploader.js populates these from response.vt_stats          -->
+          <!-- shown as "—" when vt_stats is null (VT disabled/no IPs)    -->
+          <div class="stat-card" id="stat-card-vt-ips" role="listitem">
+            <span class="stat-value" id="stat-unique-ips" aria-label="Unique IPs checked by VirusTotal">—</span>
+            <span class="stat-label">Unique IPs</span>
+          </div>
+          <div class="stat-card" id="stat-card-vt-calls" role="listitem">
+            <span class="stat-value" id="stat-vt-calls" aria-label="VirusTotal API calls made">—</span>
+            <span class="stat-label">VT Checked</span>
+          </div>
+
         </div>
 
         <!-- Pattern / source meta tags — populated by uploader.js -->
@@ -205,7 +219,7 @@
 
     </aside>
 
-    <!-- ── Content area ────────────────────────────────────────────────── -->
+    <!-- Content area -->
     <!--
       INTENTIONALLY EMPTY on load.
       The JS overlay (#loader-overlay) is injected here at runtime by uploader.js.
@@ -313,7 +327,7 @@
 
   </main>
 
-  <!-- ── Scripts — order is load-dependency order ───────────────────────── -->
+  <!-- Scripts — order is load-dependency order -->
   <script src="js/exporter.js"></script>
   <script src="js/table.js"></script>
   <script src="js/uploader.js"></script>

@@ -54,7 +54,16 @@ def _extract_unique_ips(
     return src_ips, dst_ips
 
 
-def _resolve_ips_parallel(ips: Set[str]) -> Dict[str, str]:
+def _resolve_ips_parallel(ips: Set[str]) -> Tuple[Dict[str, str], int]:
+    """
+    Resolves a set of IPs via cache + VT API in parallel.
+
+    Returns
+    -------
+    tuple[Dict[str, str], int]
+        (ip_map, api_calls_made)
+        api_calls_made counts only live API calls (cache hits excluded).
+    """
     results: Dict[str, str] = {}
     to_query: List[str] = []
 
@@ -74,7 +83,7 @@ def _resolve_ips_parallel(ips: Set[str]) -> Dict[str, str]:
     )
 
     if not to_query:
-        return results
+        return results, 0
 
     start = time.monotonic()
 
@@ -106,7 +115,7 @@ def _resolve_ips_parallel(ips: Set[str]) -> Dict[str, str]:
         elapsed_seconds=round(elapsed, 3),
     )
 
-    return results
+    return results, len(to_query)
 
 
 def _call_with_delay(ip: str) -> str:
@@ -120,13 +129,29 @@ def _call_with_delay(ip: str) -> str:
         return "error"
 
 
-def enrich_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def enrich_rows(
+    rows: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, int]]]:
+    """
+    Enriches every row with src_vt_reputation and dst_vt_reputation.
+
+    Returns
+    -------
+    tuple[list[dict], dict | None]
+        - enriched rows  (same list, mutated in-place)
+        - vt_stats dict: {"unique_ips": int, "api_calls": int}
+          or None if VT is not configured or no IPs were found.
+
+    The vt_stats value is intentionally None (not zero) when VT is skipped
+    so the caller can distinguish "VT ran and found nothing" from
+    "VT was not configured" when building the API response.
+    """
     if not rows:
-        return rows
+        return rows, None
 
     if not settings.vt_configured:
         logger.debug("vt_enrichment_skipped_not_configured")
-        return _append_unknown(rows)
+        return _append_unknown(rows), None
 
     try:
         src_ips, dst_ips = _extract_unique_ips(rows)
@@ -134,9 +159,10 @@ def enrich_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
         if not all_ips:
             logger.debug("vt_enrichment_no_ips_found")
-            return _append_unknown(rows)
+            return _append_unknown(rows), None
 
-        ip_map = _resolve_ips_parallel(all_ips)
+        # ── _resolve_ips_parallel now returns (ip_map, api_calls_made) ──
+        ip_map, api_calls_made = _resolve_ips_parallel(all_ips)
 
         enriched: List[Dict[str, Any]] = []
         for row in rows:
@@ -147,12 +173,20 @@ def enrich_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             row["dst_vt_reputation"] = ip_map.get(dst_ip, "unknown") if dst_ip else "unknown"
             enriched.append(row)
 
+        # ── Build vt_stats ────────────────────────────────────────────────
+        vt_stats: Dict[str, int] = {
+            "unique_ips": len(all_ips),
+            "api_calls":  api_calls_made,
+        }
+
         logger.info(
             "vt_enrichment_complete",
             total_rows=len(enriched),
             unique_ips_resolved=len(ip_map),
+            unique_ips=vt_stats["unique_ips"],
+            api_calls=vt_stats["api_calls"],
         )
-        return enriched
+        return enriched, vt_stats
 
     except Exception as exc:
         logger.error(
@@ -160,7 +194,7 @@ def enrich_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             error=str(exc),
             rows_affected=len(rows),
         )
-        return _append_unknown(rows)
+        return _append_unknown(rows), None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

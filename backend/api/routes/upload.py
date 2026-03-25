@@ -80,7 +80,7 @@ async def upload_log_file(
         4. Select pattern:
                a. pattern_id provided → load from store directly
                b. auto-detect        → score ALL lines
-               c. KV detection       → parse as key=value if confident   ← NEW
+               c. KV detection       → parse as key=value if confident
                d. no match           → AI fallback → validate → save → use
         5. Apply         — extract fields from all lines
         6. Parse         — build typed, ordered DataFrame
@@ -99,7 +99,7 @@ async def upload_log_file(
     KV parser notes:
         - Triggered when regex detection fails and file contains key=value lines
         - No AI call, no regex dependency — pure structural parsing
-        - Normalises vendor field names (remip→src_ip, srccountry→src_country…)
+        - Normalises vendor field names (remip->src_ip, srccountry->src_country)
         - src_ip is extracted so VT enrichment works automatically
         - Never saves a pattern — KV detection is stateless and always re-runs
 
@@ -109,6 +109,8 @@ async def upload_log_file(
         - Results are cached per TTL set by VT_CACHE_TTL_SECONDS
         - Never breaks the pipeline — sets "unknown" on any failure
         - CSV export includes VT columns in full dataset
+        - vt_stats included in JSON response: {"unique_ips": N, "api_calls": N}
+        - vt_stats is null in JSON response when VT is disabled or no IPs found
 
     Large file notes:
         - preview_only=true caps the response rows at MAX_PREVIEW_ROWS
@@ -154,13 +156,13 @@ async def upload_log_file(
 
     # ── Step 4: Select pattern ────────────────────────────────────────────
     #
-    # _select_pattern now returns a (pattern, records) tuple.
+    # _select_pattern returns a (pattern, records) tuple.
     #
     # For the regex and AI paths:   records=None  (apply_pattern runs below)
     # For the KV path:              records is pre-populated by kv_parser
     #
     # This avoids running apply_pattern() on a KV file (it has no regex)
-    # while keeping Steps 5–10 completely unchanged.
+    # while keeping Steps 5-10 completely unchanged.
 
     matched_pattern, kv_records = await _select_pattern(
         lines=lines,
@@ -205,20 +207,19 @@ async def upload_log_file(
     # ── Step 8: VT enrichment ─────────────────────────────────────────────
     # Appends src_vt_reputation + dst_vt_reputation to every row in-place.
     #
-    # Key properties:
-    #   - Runs on the FULL rows list so CSV export always has VT columns.
-    #   - Deduplicates IPs internally — one VT call per unique IP regardless
-    #     of how many rows share that IP.
-    #   - Is a no-op (sets "unknown") when VT_ENABLED=false or no API key.
-    #   - Never raises — any failure returns rows unchanged except for the
-    #     two new fields being set to "unknown".
+    # enrich_with_vt() now returns (enriched_rows, vt_stats) where:
+    #   vt_stats = {"unique_ips": int, "api_calls": int}  when VT ran
+    #   vt_stats = None                                   when VT skipped
     #
-    # For KV logs: src_ip is normalised by kv_parser so VT enrichment
-    # picks it up automatically — no special handling required.
+    # Key properties (all unchanged):
+    #   - Runs on the FULL rows list so CSV export always has VT columns.
+    #   - Deduplicates IPs internally — one VT call per unique IP.
+    #   - Is a no-op (sets "unknown") when VT_ENABLED=false or no API key.
+    #   - Never raises — any failure returns rows unchanged with "unknown".
     #
     # Placement: after dataframe_to_json_rows() and BEFORE the preview
     # slice so that both the JSON preview and the CSV export see VT data.
-    rows = _parser.enrich_with_vt(rows)
+    rows, vt_stats = _parser.enrich_with_vt(rows)
 
     # Rebuild the columns list AFTER enrichment so the two new VT fields
     # are included in the response columns array when VT is active.
@@ -244,6 +245,8 @@ async def upload_log_file(
         match_rate=match_rate,
         preview_only=preview_only,
         vt_columns_present="src_vt_reputation" in columns,
+        vt_unique_ips=vt_stats["unique_ips"] if vt_stats else None,
+        vt_api_calls=vt_stats["api_calls"] if vt_stats else None,
     )
 
     # ── Step 10: Respond ──────────────────────────────────────────────────
@@ -278,6 +281,7 @@ async def upload_log_file(
             is_preview=is_preview,
             preview_rows=MAX_PREVIEW_ROWS,
         ),
+        vt_stats=vt_stats,  # None when VT disabled/skipped, dict when VT ran
     )
 
 
@@ -294,17 +298,17 @@ async def _select_pattern(
     Resolves the pattern to use for parsing.
 
     Priority:
-        1. pattern_id provided → load from store, raise 404 if not found
-        2. Auto-detect         → score all lines against pattern library
-        3. KV detection        → parse as key=value structured log    ← NEW
-        4. AI fallback         → generate, validate, save, return
+        1. pattern_id provided -> load from store, raise 404 if not found
+        2. Auto-detect         -> score all lines against pattern library
+        3. KV detection        -> parse as key=value structured log
+        4. AI fallback         -> generate, validate, save, return
 
     Returns
     -------
     tuple[dict, Optional[list[dict]]]
         (pattern, records)
 
-        For paths 1, 2, 4:  records=None  → caller runs apply_pattern()
+        For paths 1, 2, 4:  records=None  -> caller runs apply_pattern()
         For path 3 (KV):    records is the pre-built list of dicts from
                             kv_parser — caller skips apply_pattern()
 
