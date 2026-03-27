@@ -1,3 +1,4 @@
+from math import ceil
 from pathlib import Path
 from typing import Union, Optional
 import re as _re
@@ -33,6 +34,11 @@ _parser = LogParser()
 # Maximum rows returned when preview_only=true
 MAX_PREVIEW_ROWS = 100
 
+# ── Pagination constants ──────────────────────────────────────────────────────
+DEFAULT_PAGE      = 1
+DEFAULT_PAGE_SIZE = 100
+MAX_PAGE_SIZE     = 500
+
 
 @router.post(
     "/upload",
@@ -41,7 +47,8 @@ MAX_PREVIEW_ROWS = 100
         "Accepts a .log or .txt file. Validates, detects the log format, "
         "and returns structured data. "
         "Supports optional pattern_id for manual format selection, "
-        "format=csv for CSV download, and preview_only=true for large files."
+        "format=csv for CSV download, and preview_only=true for large files. "
+        "Supports server-side pagination via page and page_size query params."
     ),
     response_model=None,
 )
@@ -70,6 +77,25 @@ async def upload_log_file(
             "Match statistics still reflect the full file."
         ),
     ),
+    page: int = Query(
+        default=DEFAULT_PAGE,
+        ge=1,
+        description=(
+            "Page number to return (1-based). "
+            "Used for server-side pagination of large datasets. "
+            "Ignored when format=csv (CSV always returns full dataset)."
+        ),
+    ),
+    page_size: int = Query(
+        default=DEFAULT_PAGE_SIZE,
+        ge=1,
+        le=MAX_PAGE_SIZE,
+        description=(
+            f"Number of rows per page (default {DEFAULT_PAGE_SIZE}, "
+            f"max {MAX_PAGE_SIZE}). "
+            "Ignored when format=csv (CSV always returns full dataset)."
+        ),
+    ),
 ) -> Union[ParseResponse, Response]:
     """
     Full pipeline:
@@ -86,7 +112,8 @@ async def upload_log_file(
         6. Parse         — build typed, ordered DataFrame
         7. VT enrichment — append src_vt_reputation and dst_vt_reputation
         8. Preview slice — if preview_only, cap rows at MAX_PREVIEW_ROWS
-        9. Respond       — JSON or CSV
+        9. Pagination    — slice rows for requested page (JSON only)
+       10. Respond       — JSON or CSV
 
     AI fallback notes:
         - Only triggered when no pattern matches AND pattern_id is not given
@@ -116,6 +143,13 @@ async def upload_log_file(
         - preview_only=true caps the response rows at MAX_PREVIEW_ROWS
         - Match statistics (matched_lines, match_rate) always reflect the FULL file
         - CSV export always contains ALL matched rows regardless of preview_only
+
+    Pagination notes:
+        - page and page_size control which slice of matched rows is returned
+        - total_rows and total_pages in the response describe the full dataset
+        - page > total_pages returns an empty rows list (not an error)
+        - CSV export always returns the full dataset regardless of page/page_size
+        - preview_only takes precedence over pagination when both are supplied
     """
     logger.info(
         "upload_received",
@@ -123,6 +157,8 @@ async def upload_log_file(
         format=format.value,
         pattern_id=pattern_id,
         preview_only=preview_only,
+        page=page,
+        page_size=page_size,
     )
 
     # ── Step 1: Validate ──────────────────────────────────────────────────
@@ -205,7 +241,7 @@ async def upload_log_file(
     rows = _parser.dataframe_to_json_rows(df)
 
     # ── Step 8: VT enrichment ─────────────────────────────────────────────
-    # Appends src_vt_reputation + dst_vt_reputation to every row in-place.
+    # Appends src_vt_reputation and dst_vt_reputation to every row in-place.
     #
     # enrich_with_vt() now returns (enriched_rows, vt_stats) where:
     #   vt_stats = {"unique_ips": int, "api_calls": int}  when VT ran
@@ -230,8 +266,27 @@ async def upload_log_file(
     # ── Step 9: Preview slice ─────────────────────────────────────────────
     # Sliced dataset — only used by JSON when preview_only=True.
     # CSV always uses the full `rows` list (see Step 10).
+    # When preview_only is active it takes precedence over pagination.
     response_rows = rows[:MAX_PREVIEW_ROWS] if preview_only else rows
     is_preview    = preview_only and len(rows) > MAX_PREVIEW_ROWS
+
+    # ── Step 9b: Server-side pagination ───────────────────────────────────
+    # Only applied to JSON responses and only when preview_only=False.
+    # CSV always uses the full `rows` list — pagination is never applied.
+    #
+    # total_rows  → full matched row count (always reflects full dataset)
+    # total_pages → ceil(total_rows / page_size), minimum 1
+    # start/end   → slice indices for the requested page
+    #
+    # If page > total_pages the slice produces an empty list — this is
+    # intentional and not treated as an error (caller handles empty rows).
+    total_rows  = matched_count
+    total_pages = max(1, ceil(total_rows / page_size))
+
+    if not preview_only:
+        start         = (page - 1) * page_size
+        end           = start + page_size
+        response_rows = response_rows[start:end]
 
     logger.info(
         "parse_complete",
@@ -244,6 +299,10 @@ async def upload_log_file(
         unmatched=unmatched_count,
         match_rate=match_rate,
         preview_only=preview_only,
+        page=page,
+        page_size=page_size,
+        total_rows=total_rows,
+        total_pages=total_pages,
         vt_columns_present="src_vt_reputation" in columns,
         vt_unique_ips=vt_stats["unique_ips"] if vt_stats else None,
         vt_api_calls=vt_stats["api_calls"] if vt_stats else None,
@@ -252,13 +311,13 @@ async def upload_log_file(
     # ── Step 10: Respond ──────────────────────────────────────────────────
 
     if format == ResponseFormat.csv:
-        # CSV always uses full rows — never the preview slice.
+        # CSV always uses full rows — never the preview slice or pagination.
         # VT columns are included because enrichment ran on the full list.
         csv_filename = build_csv_filename(file.filename, matched_pattern["id"])
         csv_bytes, csv_filename = records_to_csv(columns, rows, csv_filename)
         return csv_response(csv_bytes, csv_filename)
 
-    # JSON uses the preview slice
+    # JSON uses the preview slice (or paginated slice when preview_only=False)
     return ParseResponse(
         success=True,
         filename=file.filename,
@@ -281,7 +340,11 @@ async def upload_log_file(
             is_preview=is_preview,
             preview_rows=MAX_PREVIEW_ROWS,
         ),
-        vt_stats=vt_stats,  # None when VT disabled/skipped, dict when VT ran
+        vt_stats=vt_stats,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+        total_rows=total_rows,
     )
 
 

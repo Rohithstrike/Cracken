@@ -319,6 +319,58 @@
           </span>
         </div>
 
+        <!-- Pagination controls — shown by uploader.js when total_pages > 1 -->
+        <!-- Hidden by default; uploader.js calls removeAttribute('hidden')   -->
+        <!-- when the first paginated response arrives.                        -->
+        <!-- IDs consumed by uploader.js:                                      -->
+        <!--   #pagination-bar   → root visibility toggle                      -->
+        <!--   #page-prev-btn    → Previous button                             -->
+        <!--   #page-next-btn    → Next button                                 -->
+        <!--   #page-indicator   → "Page N of M" label                        -->
+        <!--   #page-total-label → "X total rows" label                       -->
+        <nav
+          class="pagination-bar"
+          id="pagination-bar"
+          hidden
+          aria-label="Table pagination"
+        >
+          <button
+            class="btn btn-ghost btn-page"
+            id="page-prev-btn"
+            type="button"
+            disabled
+            aria-disabled="true"
+            aria-label="Previous page"
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+              <path d="M8 2L4 6.5L8 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Prev
+          </button>
+
+          <span class="page-indicator" id="page-indicator" aria-live="polite" aria-atomic="true">
+            Page 1 of 1
+          </span>
+
+          <button
+            class="btn btn-ghost btn-page"
+            id="page-next-btn"
+            type="button"
+            disabled
+            aria-disabled="true"
+            aria-label="Next page"
+          >
+            Next
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+              <path d="M5 2L9 6.5L5 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+
+          <span class="page-total-label" id="page-total-label" aria-live="polite">
+          </span>
+        </nav>
+        <!-- /#pagination-bar -->
+
       </div>
       <!-- /#table-container -->
 

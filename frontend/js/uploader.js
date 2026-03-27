@@ -42,6 +42,26 @@
   const statusPill      = document.getElementById('connection-status');
   const statusLabelText = document.getElementById('status-label-text');
 
+  // ── Pagination DOM refs ───────────────────────────────────────────────────
+  const paginationBar    = document.getElementById('pagination-bar');
+  const pagePrevBtn      = document.getElementById('page-prev-btn');
+  const pageNextBtn      = document.getElementById('page-next-btn');
+  const pageIndicator    = document.getElementById('page-indicator');
+  const pageTotalLabel   = document.getElementById('page-total-label');
+
+  // ── Pagination state ──────────────────────────────────────────────────────
+  //
+  // currentPage  — the page currently displayed (1-based)
+  // pageSize     — number of rows per page (matches backend default)
+  // totalPages   — total number of pages returned by the last response
+  //
+  // These are reset to defaults whenever a new file is selected (clearFile)
+  // so navigating pages always reflects the currently loaded file.
+
+  let currentPage = 1;
+  let pageSize    = 100;
+  let totalPages  = 1;
+
   // Loader overlay refs — populated by createLoaderOverlay()
   let loaderOverlay = null;
   let loaderBar     = null;
@@ -384,6 +404,14 @@
     setParseBtn(false);
     setProcessing(false);
 
+    // Reset pagination state when file is cleared
+    currentPage = 1;
+    totalPages  = 1;
+    hidePagination();
+
+    // Reset parse toast guard so a new file upload shows the toast again
+    window._parseToastShown = false;
+
     document.getElementById('stats-section')?.setAttribute('hidden', '');
     document.getElementById('error-panel')?.setAttribute('hidden', '');
 
@@ -399,6 +427,40 @@
 
   function showEmptyState() {
     document.getElementById('empty-state')?.removeAttribute('hidden');
+  }
+
+  // ── Pagination helpers ────────────────────────────────────────────────────
+
+  function updatePaginationUI() {
+    // Hide pagination when there is only one page or no data
+    if (!paginationBar || totalPages <= 1) {
+      hidePagination();
+      return;
+    }
+
+    // Show bar
+    paginationBar.removeAttribute('hidden');
+
+    // Page indicator: "Page 2 of 14"
+    if (pageIndicator) {
+      pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+    }
+
+    // Prev button — disabled on first page
+    if (pagePrevBtn) {
+      pagePrevBtn.disabled = currentPage <= 1;
+      pagePrevBtn.setAttribute('aria-disabled', String(currentPage <= 1));
+    }
+
+    // Next button — disabled on last page
+    if (pageNextBtn) {
+      pageNextBtn.disabled = currentPage >= totalPages;
+      pageNextBtn.setAttribute('aria-disabled', String(currentPage >= totalPages));
+    }
+  }
+
+  function hidePagination() {
+    paginationBar?.setAttribute('hidden', '');
   }
 
   // ── Event wiring ──────────────────────────────────────────────────────────
@@ -417,7 +479,35 @@
     showEmptyState();
   });
 
-  parseBtn.addEventListener('click', () => { if (selectedFile) uploadAndParse(selectedFile); });
+  parseBtn.addEventListener('click', () => {
+    if (selectedFile) {
+      // New parse triggered manually — always reset to page 1
+      currentPage = 1;
+      uploadAndParse(selectedFile);
+    }
+  });
+
+  // ── Pagination button listeners ───────────────────────────────────────────
+  //
+  // Both buttons reuse uploadAndParse() with the updated currentPage value.
+  // The loader, VT stats, error handling, and stats update all behave
+  // identically to a fresh parse — no logic is duplicated.
+
+  if (pagePrevBtn) {
+    pagePrevBtn.addEventListener('click', () => {
+      if (currentPage <= 1 || !selectedFile) return;
+      currentPage--;
+      uploadAndParse(selectedFile);
+    });
+  }
+
+  if (pageNextBtn) {
+    pageNextBtn.addEventListener('click', () => {
+      if (currentPage >= totalPages || !selectedFile) return;
+      currentPage++;
+      uploadAndParse(selectedFile);
+    });
+  }
 
   // ── Core upload ───────────────────────────────────────────────────────────
   async function uploadAndParse(file) {
@@ -425,6 +515,7 @@
     abortController = new AbortController();
     setParseBtn(false);
     setProcessing(true);
+    window._parseToastShown = false;
 
     resetLoader();
     showLoaderOverlay();
@@ -433,9 +524,14 @@
     const formData = new FormData();
     formData.append('file', file);
 
+    // Include pagination params in the request URL.
+    // currentPage and pageSize are module-level state — always reflect
+    // the correct page for this call (fresh parse = 1, nav = N).
+    const url = `${API_ENDPOINT}?page=${currentPage}&page_size=${pageSize}`;
+
     let response;
     try {
-      response = await fetch(API_ENDPOINT, {
+      response = await fetch(url, {
         method: 'POST',
         body:   formData,
         signal: abortController.signal,
@@ -486,6 +582,12 @@
       return;
     }
 
+    // Store pagination values from response before handing off to handleSuccess.
+    // data.page and data.total_pages are provided by the backend when pagination
+    // is active. Fall back to defaults so single-page responses still work.
+    currentPage = data.page        ?? currentPage;
+    totalPages  = data.total_pages ?? 1;
+
     setProcessing(false);
     handleSuccess(data, file.name);
   }
@@ -501,13 +603,19 @@
 
     updateStats(data, filename);
 
+    // Update pagination UI after stats — totalPages is set by this point
+    updatePaginationUI();
+
     requestAnimationFrame(() => {
       document.getElementById('table-container')
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     const count = (data.matched_lines ?? data.rows?.length ?? 0).toLocaleString();
-    window.toastNotify(`Parsed ${count} log entries`, 'success', 3500);
+    if (!window._parseToastShown) {
+      window.toastNotify(`Parsed ${count} log entries`, 'success', 3500);
+      window._parseToastShown = true;
+    }
   }
 
   // ── Stats update ──────────────────────────────────────────────────────────
@@ -547,6 +655,15 @@
       vtCallsCard?.setAttribute('hidden', '');
     }
     // ── end VT stats ──────────────────────────────────────────────────────
+
+    // ── Pagination total rows label ───────────────────────────────────────
+    // Update page-total-label with total_rows from response if present.
+    // Falls back to matched_lines so the label is always populated.
+    if (pageTotalLabel) {
+      const totalRows = data.total_rows ?? data.matched_lines ?? data.rows?.length ?? 0;
+      pageTotalLabel.textContent = `${Number(totalRows).toLocaleString()} total rows`;
+    }
+    // ── end pagination label ──────────────────────────────────────────────
 
     const metaTags = document.getElementById('meta-tags');
     if (metaTags) {

@@ -48,23 +48,13 @@ class ParseResponse(BaseModel):
     # None when VT is disabled, not configured, or no IPs were found.
     # Present with {"unique_ips": int, "api_calls": int} when VT ran.
     vt_stats: Optional[dict[str, int]] = None
-
-
-class ErrorResponse(BaseModel):
-    """Standard error shape for manually constructed errors."""
-    success: bool = False
-    error: str
-    detail: Optional[str] = None
-
-
-class LogTypeInfo(BaseModel):
-    """
-    Describes one available log pattern.
-    Returned by GET /api/log-types (Step 2).
-    """
-    id: str
-    name: str
-    log_type: str
-    source: str
-    field_count: int
-    sample: Optional[str] = None
+    # ── Server-side pagination ────────────────────────────────────────────
+    # Describes which slice of the full dataset this response contains.
+    # page       → current page number (1-based)
+    # page_size  → number of rows per page (default 100, max 500)
+    # total_pages → total number of pages for the full dataset
+    # total_rows  → total matched rows across ALL pages (unsliced count)
+    page: int = 1
+    page_size: int = 100
+    total_pages: int = 1
+    total_rows: int = 0

@@ -1084,3 +1084,103 @@ body {
   --status-bg:     var(--info-bg);
   --status-border: var(--info-border);
 }
+
+
+/* ─────────────────────────────────────────────────────────────
+   Pagination — Enterprise Grade UI (Clean / Compact / Balanced)
+   ───────────────────────────────────────────────────────────── */
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  position: relative;
+
+  margin-top: 14px;
+  padding: 10px 14px;
+
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(6px);
+
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+
+/* LEFT + RIGHT BUTTON GROUP */
+.btn-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 5px 10px !important;
+  font-size: 11.5px !important;
+  font-weight: 500;
+
+  border-radius: 8px !important;
+
+  transition: all 0.18s ease;
+}
+
+/* Hover effect (subtle, premium) */
+.btn-page:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Disabled state */
+.btn-page:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* PAGE INDICATOR (CENTER) */
+.page-indicator {
+  margin: 0 18px;
+
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+
+  color: #cbd5e1;
+  letter-spacing: 0.4px;
+}
+
+/* TOTAL ROWS (RIGHT SIDE FLOAT) */
+.page-total-label {
+  position: absolute;
+  right: 14px;
+
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+
+  color: #6b7280;
+  opacity: 0.85;
+}
+
+/* OPTIONAL: subtle divider feel */
+.pagination-bar::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255,255,255,0.08),
+    transparent
+  );
+}
+
+.btn-page svg {
+  opacity: 0.7;
+}
+
+.btn-page:hover svg {
+  opacity: 1;
+}
