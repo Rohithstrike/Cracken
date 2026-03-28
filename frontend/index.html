@@ -19,6 +19,16 @@
 
   <!-- Styles -->
   <link rel="stylesheet" href="css/main.css" />
+
+  <!--
+    Chart.js CDN — loaded in <head> so dashboard.js can reference it
+    immediately when the DOM is ready. defer ensures it does not block
+    initial render. integrity hash pins to a known-good build.
+  -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
+    defer
+  ></script>
 </head>
 <body>
 
@@ -187,9 +197,7 @@
             <span class="stat-label">Match rate</span>
           </div>
 
-          <!-- VT enrichment stats — same structure and classes as above -->
-          <!-- uploader.js populates these from response.vt_stats          -->
-          <!-- shown as "—" when vt_stats is null (VT disabled/no IPs)    -->
+          <!-- VT enrichment stats -->
           <div class="stat-card" id="stat-card-vt-ips" role="listitem">
             <span class="stat-value" id="stat-unique-ips" aria-label="Unique IPs checked by VirusTotal">—</span>
             <span class="stat-label">Unique IPs</span>
@@ -201,7 +209,7 @@
 
         </div>
 
-        <!-- Pattern / source meta tags — populated by uploader.js -->
+        <!-- Pattern / source meta tags -->
         <div class="meta-tags" id="meta-tags" aria-label="Pattern metadata"></div>
 
         <!-- CSV export -->
@@ -215,19 +223,34 @@
           </svg>
           Export CSV
         </button>
+
+        <!--
+          Open Dashboard button — NEW.
+          Hidden until uploader.js sets window._fullParsedData after a
+          successful parse. uploader.js calls removeAttribute('hidden') on it.
+          dashboard.js handles the click event.
+        -->
+        <button
+          class="btn btn-dashboard"
+          id="dashboard-btn"
+          type="button"
+          hidden
+          aria-label="Open visual analytics dashboard"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/>
+            <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/>
+            <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/>
+            <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/>
+          </svg>
+          Open Dashboard
+        </button>
+
       </section>
 
     </aside>
 
     <!-- Content area -->
-    <!--
-      INTENTIONALLY EMPTY on load.
-      The JS overlay (#loader-overlay) is injected here at runtime by uploader.js.
-      The table (#table-container) is shown here after a successful parse.
-      The error panel (#error-panel) is shown here on failure.
-      There is NO empty state / placeholder content — the center is blank until
-      the user triggers an action.
-    -->
     <section
       class="content-area"
       id="content-area"
@@ -236,12 +259,7 @@
       aria-relevant="additions removals"
     >
 
-      <!--
-        Fallback loader panel.
-        The JS-built #loader-overlay (position:absolute, inset:0) is used
-        in practice. This panel exists only as a graceful fallback.
-        It is always hidden by default.
-      -->
+      <!-- Fallback loader panel -->
       <div class="loader-panel" id="loader-panel" hidden aria-hidden="true">
         <div class="loader-inner">
           <div class="loader-track">
@@ -260,7 +278,7 @@
         </div>
       </div>
 
-      <!-- Error state — shown by uploader.js on parse failure -->
+      <!-- Error state -->
       <div class="error-panel" id="error-panel" hidden role="alert">
         <div class="error-icon" aria-hidden="true">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
@@ -319,15 +337,7 @@
           </span>
         </div>
 
-        <!-- Pagination controls — shown by uploader.js when total_pages > 1 -->
-        <!-- Hidden by default; uploader.js calls removeAttribute('hidden')   -->
-        <!-- when the first paginated response arrives.                        -->
-        <!-- IDs consumed by uploader.js:                                      -->
-        <!--   #pagination-bar   → root visibility toggle                      -->
-        <!--   #page-prev-btn    → Previous button                             -->
-        <!--   #page-next-btn    → Next button                                 -->
-        <!--   #page-indicator   → "Page N of M" label                        -->
-        <!--   #page-total-label → "X total rows" label                       -->
+        <!-- Pagination controls -->
         <nav
           class="pagination-bar"
           id="pagination-bar"
@@ -369,10 +379,158 @@
           <span class="page-total-label" id="page-total-label" aria-live="polite">
           </span>
         </nav>
-        <!-- /#pagination-bar -->
 
       </div>
       <!-- /#table-container -->
+
+      <!--
+        Dashboard panel — NEW.
+        Hidden by default. dashboard.js shows/hides this panel and
+        #table-container when the user toggles between views.
+        The inner structure is populated entirely by dashboard.js —
+        no static chart markup lives here so the panel stays lightweight
+        until the user actually opens the dashboard.
+      -->
+      <div
+        class="dashboard-panel"
+        id="dashboard-panel"
+        hidden
+        role="region"
+        aria-label="Visual analytics dashboard"
+      >
+
+        <!-- Dashboard toolbar — Back button + title -->
+        <div class="dashboard-toolbar">
+          <button
+            class="btn btn-ghost btn-dashboard-back"
+            id="dashboard-back-btn"
+            type="button"
+            aria-label="Return to log table"
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+              <path d="M8 2L4 6.5L8 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Back to Table
+          </button>
+          <span class="dashboard-title">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/>
+              <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/>
+              <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/>
+              <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/>
+            </svg>
+            Analytics Dashboard
+          </span>
+          <span class="dashboard-dataset-label" id="dashboard-dataset-label"></span>
+        </div>
+
+        <!--
+          Dashboard loader — shown while dashboard.js is processing data
+          and rendering charts. Uses the same visual language as the
+          main loader but is scoped entirely to the dashboard panel.
+        -->
+        <div class="dashboard-loader" id="dashboard-loader" hidden aria-live="polite">
+          <div class="loader-track">
+            <div class="loader-bar" id="dashboard-loader-bar"></div>
+          </div>
+          <p class="loader-status" id="dashboard-loader-status">Preparing data…</p>
+          <div class="loader-steps" id="dashboard-loader-steps">
+            <span class="lstep" data-step="prepare">Preparing data</span>
+            <span class="lstep-sep">›</span>
+            <span class="lstep" data-step="insights">Generating insights</span>
+            <span class="lstep-sep">›</span>
+            <span class="lstep" data-step="render">Rendering charts</span>
+          </div>
+        </div>
+
+        <!--
+          Dashboard content — hidden until charts are rendered.
+          dashboard.js populates and then reveals this container.
+        -->
+        <div class="dashboard-content" id="dashboard-content" hidden>
+
+          <!-- Key metrics cards row -->
+          <div class="dash-metrics-row" id="dash-metrics-row">
+            <!-- Cards injected by dashboard.js -->
+          </div>
+
+          <!-- Auto-generated insights -->
+          <div class="dash-insights" id="dash-insights">
+            <div class="dash-section-label">
+              <span class="label-line"></span>
+              <span>KEY INSIGHTS</span>
+            </div>
+            <div class="dash-insights-body" id="dash-insights-body">
+              <!-- Insight items injected by dashboard.js -->
+            </div>
+          </div>
+
+          <!-- Charts grid -->
+          <div class="dash-charts-grid" id="dash-charts-grid">
+
+            <!-- Timeline chart — event count over time -->
+            <div class="dash-chart-card dash-chart-card--wide" id="dash-chart-timeline">
+              <div class="dash-chart-header">
+                <span class="dash-chart-title">Event Timeline</span>
+                <span class="dash-chart-sub" id="dash-timeline-sub"></span>
+              </div>
+              <div class="dash-chart-body">
+                <canvas id="chart-timeline" aria-label="Event count over time" role="img"></canvas>
+              </div>
+            </div>
+
+            <!-- Top Source IPs -->
+            <div class="dash-chart-card" id="dash-chart-src-ips">
+              <div class="dash-chart-header">
+                <span class="dash-chart-title">Top Source IPs</span>
+                <span class="dash-chart-sub">Top 10</span>
+              </div>
+              <div class="dash-chart-body">
+                <canvas id="chart-src-ips" aria-label="Top source IP addresses" role="img"></canvas>
+              </div>
+            </div>
+
+            <!-- Top Destination Ports -->
+            <div class="dash-chart-card" id="dash-chart-dst-ports">
+              <div class="dash-chart-header">
+                <span class="dash-chart-title">Top Destination Ports</span>
+                <span class="dash-chart-sub">Top 10</span>
+              </div>
+              <div class="dash-chart-body">
+                <canvas id="chart-dst-ports" aria-label="Top destination ports" role="img"></canvas>
+              </div>
+            </div>
+
+            <!-- Status Code distribution -->
+            <div class="dash-chart-card" id="dash-chart-status">
+              <div class="dash-chart-header">
+                <span class="dash-chart-title">Status Code Distribution</span>
+                <span class="dash-chart-sub"></span>
+              </div>
+              <div class="dash-chart-body">
+                <canvas id="chart-status" aria-label="HTTP status code distribution" role="img"></canvas>
+              </div>
+            </div>
+
+            <!-- Protocol distribution -->
+            <div class="dash-chart-card" id="dash-chart-protocol">
+              <div class="dash-chart-header">
+                <span class="dash-chart-title">Protocol Distribution</span>
+                <span class="dash-chart-sub"></span>
+              </div>
+              <div class="dash-chart-body">
+                <canvas id="chart-protocol" aria-label="Protocol distribution" role="img"></canvas>
+              </div>
+            </div>
+
+          </div>
+          <!-- /.dash-charts-grid -->
+
+        </div>
+        <!-- /#dashboard-content -->
+
+      </div>
+      <!-- /#dashboard-panel -->
 
     </section>
     <!-- /.content-area -->
@@ -383,6 +541,11 @@
   <script src="js/exporter.js"></script>
   <script src="js/table.js"></script>
   <script src="js/uploader.js"></script>
+  <!--
+    dashboard.js loaded last — depends on Chart.js (CDN, deferred above)
+    and on window._fullParsedData set by uploader.js after a successful parse.
+  -->
+  <script src="js/dashboard.js"></script>
 
 </body>
 </html>

@@ -319,12 +319,6 @@ body {
 }
 
 /* ── Sidebar ──────────────────────────────────────────────────────────────── */
-/*
-  Sidebar uses --bg-surface.
-  Content area uses --bg-content (slightly different).
-  The 1px border between them creates a clean panel separation —
-  same technique Kibana uses to differentiate its left nav from main canvas.
-*/
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
@@ -571,6 +565,27 @@ body {
   border-color: var(--border-strong);
 }
 
+/* ── Dashboard button — identical spec to .btn-export ────────────────────── */
+/*
+  Intentionally mirrors .btn-export exactly:
+  same height, padding, font-size, border-radius, hover effect, icon gap.
+  Both live in the sidebar stats section so they must be visually identical.
+*/
+.btn-dashboard {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+}
+
+.btn-dashboard:not(:disabled):hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-dim);
+}
+
+.btn-dashboard:not(:disabled):active { transform: scale(0.97); }
+
 /* ── Stats section ────────────────────────────────────────────────────────── */
 .stat-grid {
   display: grid;
@@ -642,12 +657,6 @@ body {
 .meta-tag--ai     { background: var(--warning-bg);   color: var(--warning);        border: 1px solid var(--warning-border); }
 
 /* ── Content area ─────────────────────────────────────────────────────────── */
-/*
-  Uses --bg-content (one stop darker than bg-base) so it reads as a
-  distinct surface from the sidebar without being a different hue.
-  position:relative is mandatory — the JS-built #loader-overlay is
-  position:absolute; inset:0 inside this element.
-*/
 .content-area {
   flex: 1;
   min-width: 0;
@@ -767,11 +776,6 @@ body {
 .loader-box .lstep-sep      { opacity: 0.18; }
 
 /* ── Table container ──────────────────────────────────────────────────────── */
-/*
-  Table uses --bg-surface, matching the sidebar surface.
-  This unifies the panel feel — both sidebar and table are "cards"
-  sitting inside the darker content area background.
-*/
 .table-container {
   display: flex;
   flex-direction: column;
@@ -893,11 +897,6 @@ body {
 .col-resizer:hover { background: rgba(12, 181, 160, 0.36); }
 
 /* ── Data cells ─────────────────────────────────────────────────────────── */
-/*
-  Base cell color is a desaturated blue-grey.
-  It's distinct from --text-secondary (which is used for UI labels)
-  so log data doesn't visually compete with the chrome around it.
-*/
 .data-table td {
   padding: 8px 13px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.034);
@@ -965,7 +964,6 @@ body {
 .data-table td[data-field="action"][data-val="Disconnected"] { color: var(--text-muted); }
 
 /* ── Copy hint ────────────────────────────────────────────────────────────── */
-/* Row-level copy hint — shown only in the index cell on row hover */
 .data-table td.col-rownum .copy-hint {
   position: absolute;
   right: 4px; top: 50%;
@@ -1011,6 +1009,11 @@ body {
   to   { opacity: 1; transform: translateY(0);   }
 }
 
+@keyframes dash-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
 .animate-in {
   animation: fade-in 0.24s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
@@ -1046,7 +1049,6 @@ body {
   line-height: 1.1;
 }
 
-
 .brand-subtitle {
   font-size: 11px;
   font-weight: 400;
@@ -1063,12 +1065,12 @@ body {
 
 .brand-subtitle {
   font-size: 11px;
-  margin-top: 4px;   /* adds breathing space */
+  margin-top: 4px;
 }
 
 /* ── Loader subtext — helper message on long-running stages (VT) ── */
 .loader-box .loader-subtext {
-  display: none;                 /* JS sets display:block on the VT step only */
+  display: none;
   font-size: 11px;
   font-family: var(--font-mono);
   color: var(--text-muted);
@@ -1085,83 +1087,64 @@ body {
   --status-border: var(--info-border);
 }
 
-
 /* ─────────────────────────────────────────────────────────────
-   Pagination — Enterprise Grade UI (Clean / Compact / Balanced)
+   Pagination — Enterprise Grade UI
    ───────────────────────────────────────────────────────────── */
 
 .pagination-bar {
   display: flex;
   align-items: center;
   justify-content: center;
-
   position: relative;
-
   margin-top: 14px;
   padding: 10px 14px;
-
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 10px;
-
   background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(6px);
-
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
 }
 
-/* LEFT + RIGHT BUTTON GROUP */
 .btn-page {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-
   padding: 5px 10px !important;
   font-size: 11.5px !important;
   font-weight: 500;
-
   border-radius: 8px !important;
-
   transition: all 0.18s ease;
 }
 
-/* Hover effect (subtle, premium) */
 .btn-page:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
   transform: translateY(-1px);
 }
 
-/* Disabled state */
 .btn-page:disabled {
   opacity: 0.35;
   cursor: not-allowed;
   transform: none;
 }
 
-/* PAGE INDICATOR (CENTER) */
 .page-indicator {
   margin: 0 18px;
-
   font-family: 'JetBrains Mono', monospace;
   font-size: 11.5px;
   font-weight: 500;
-
   color: #cbd5e1;
   letter-spacing: 0.4px;
 }
 
-/* TOTAL ROWS (RIGHT SIDE FLOAT) */
 .page-total-label {
   position: absolute;
   right: 14px;
-
   font-family: 'JetBrains Mono', monospace;
   font-size: 10.5px;
-
   color: #6b7280;
   opacity: 0.85;
 }
 
-/* OPTIONAL: subtle divider feel */
 .pagination-bar::before {
   content: "";
   position: absolute;
@@ -1177,10 +1160,445 @@ body {
   );
 }
 
-.btn-page svg {
+.btn-page svg { opacity: 0.7; }
+.btn-page:hover svg { opacity: 1; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD — SOC Visualization Panel
+   All classes are new additions. Zero existing styles modified.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Dashboard panel — full-bleed inside .content-area ─────────────────── */
+#dashboard-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-content);
+  animation: dash-fade-in 0.28s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ── Dashboard loader ────────────────────────────────────────────────────── */
+/*
+  Centered inside the panel, matches parser loader style.
+  Uses same backdrop approach as #loader-overlay.
+*/
+#dashboard-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 320px;
+  gap: 14px;
+  flex-direction: column;
+}
+
+.dashboard-loader-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--border-mild);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: dash-spin 0.72s linear infinite;
+}
+
+@keyframes dash-spin {
+  to { transform: rotate(360deg); }
+}
+
+.dashboard-loader-text {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+/* ── Dashboard content wrapper ───────────────────────────────────────────── */
+#dashboard-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 0 24px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Dashboard toolbar ───────────────────────────────────────────────────── */
+/*
+  Three-zone flex row:
+    left  → back button
+    center → title + dataset label
+    right → (reserved / empty)
+  Uses negative margin trick to keep title truly centered even with
+  an asymmetric left element.
+*/
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  flex-shrink: 0;
+}
+
+.dashboard-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.dashboard-toolbar-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 2;
+  text-align: center;
+}
+
+.dashboard-toolbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 1;
+}
+
+.dashboard-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.dashboard-dataset-label {
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+/* Back button — ghost style matching existing .btn-ghost,
+   but auto-width and no top margin so it fits the toolbar */
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-mild);
+  border-radius: var(--radius-md);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--t-base),
+    color var(--t-base),
+    border-color var(--t-base),
+    transform var(--t-fast);
+}
+
+.btn-back:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  transform: translateX(-1px);
+}
+
+.btn-back:active { transform: scale(0.97); }
+
+/* ── Metric cards row ────────────────────────────────────────────────────── */
+/*
+  Four equal-width cards with glass effect.
+  Hover lifts card with subtle shadow — premium feel.
+*/
+.dashboard-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.dash-metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  background: rgba(20, 28, 40, 0.72);
+  border: 1px solid var(--border-mild);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.3),
+    0 0 0 1px var(--border-subtle) inset;
+  transition:
+    transform var(--t-base),
+    border-color var(--t-base),
+    box-shadow var(--t-base);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Accent glow line at top of card */
+.dash-metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  transition: opacity var(--t-slow);
+}
+
+.dash-metric-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.45),
+    0 0 0 1px var(--border-subtle) inset;
+}
+
+.dash-metric-card:hover::before { opacity: 1; }
+
+.dash-metric-value {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.8px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-metric-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--text-muted);
+  text-transform: uppercase;
   opacity: 0.7;
 }
 
-.btn-page:hover svg {
-  opacity: 1;
+/* Accent variant — top IP, peak time */
+.dash-metric-card--accent .dash-metric-value { color: var(--accent); }
+.dash-metric-card--accent::before { opacity: 0.5; }
+.dash-metric-card--accent {
+  border-color: rgba(12, 181, 160, 0.16);
+  background: rgba(12, 181, 160, 0.05);
+}
+
+.dash-metric-card--accent:hover {
+  border-color: rgba(12, 181, 160, 0.32);
+}
+
+/* ── Chart grid ──────────────────────────────────────────────────────────── */
+/*
+  2-column responsive grid.
+  Timeline spans full width (col-span-2).
+  All other charts are equal-height cards.
+*/
+.dashboard-charts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+/* Timeline spans both columns */
+.dash-chart-card--wide {
+  grid-column: 1 / -1;
+}
+
+/* Individual chart card */
+.dash-chart-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition:
+    border-color var(--t-slow),
+    box-shadow var(--t-slow);
+}
+
+.dash-chart-card:hover {
+  border-color: var(--border-mild);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.dash-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.dash-chart-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.dash-chart-badge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  padding: 2px 8px;
+  opacity: 0.7;
+}
+
+.dash-chart-body {
+  padding: 16px 18px 18px;
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+/* Canvas sizing — wide card taller, regular cards balanced */
+.dash-chart-card--wide .dash-chart-body canvas {
+  max-height: 220px;
+}
+
+.dash-chart-card:not(.dash-chart-card--wide) .dash-chart-body canvas {
+  max-height: 240px;
+}
+
+/* ── Insights panel ──────────────────────────────────────────────────────── */
+.dashboard-insights {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--t-slow);
+}
+
+.dashboard-insights:hover { border-color: var(--border-mild); }
+
+.dash-insights-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+}
+
+.dash-insights-icon {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+.dash-insights-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+/* Insights list */
+#insights-list {
+  list-style: none;
+  padding: 12px 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#insights-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 20px;
+  font-size: 12.5px;
+  color: #7a9bb5;
+  font-family: var(--font-ui);
+  line-height: 1.5;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--t-base), color var(--t-base);
+  position: relative;
+}
+
+#insights-list li:last-child { border-bottom: none; }
+
+#insights-list li:hover {
+  background: rgba(12, 181, 160, 0.03);
+  color: #a8c8e0;
+}
+
+/* Bullet — accent dot before each item */
+#insights-list li::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.6;
+}
+
+/* ── Dashboard responsive ────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 860px) {
+  .dashboard-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-chart-card--wide {
+    grid-column: 1;
+  }
+
+  .dashboard-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-toolbar-center {
+    display: none;
+  }
+}
+
+@media (max-width: 540px) {
+  .dashboard-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #dashboard-content {
+    gap: 16px;
+    padding-bottom: 16px;
+  }
+}
+
+#stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }

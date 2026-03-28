@@ -412,6 +412,10 @@
     // Reset parse toast guard so a new file upload shows the toast again
     window._parseToastShown = false;
 
+    // Hide dashboard button and reset full dataset when file is cleared
+    document.getElementById('dashboard-btn')?.setAttribute('hidden', '');
+    window._fullParsedData = null;
+
     document.getElementById('stats-section')?.setAttribute('hidden', '');
     document.getElementById('error-panel')?.setAttribute('hidden', '');
 
@@ -463,6 +467,26 @@
     paginationBar?.setAttribute('hidden', '');
   }
 
+  // ── Dashboard helpers ─────────────────────────────────────────────────────
+
+  function showDashboard() {
+    const table = document.getElementById('table-container');
+    const dashboard = document.getElementById('dashboard-panel');
+    table?.setAttribute('hidden', '');
+    dashboard?.removeAttribute('hidden');
+    // Trigger dashboard render
+    if (typeof window.renderDashboard === 'function') {
+      window.renderDashboard(window._fullParsedData);
+    }
+  }
+
+  function hideDashboard() {
+    const table = document.getElementById('table-container');
+    const dashboard = document.getElementById('dashboard-panel');
+    dashboard?.setAttribute('hidden', '');
+    table?.removeAttribute('hidden');
+  }
+
   // ── Event wiring ──────────────────────────────────────────────────────────
   dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
   dropZone.addEventListener('dragleave', e => { if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drag-over'); });
@@ -508,6 +532,19 @@
       uploadAndParse(selectedFile);
     });
   }
+
+  // ── Dashboard button listeners ────────────────────────────────────────────
+
+  const dashboardBtn = document.getElementById('dashboard-btn');
+  dashboardBtn?.addEventListener('click', () => {
+    if (!window._fullParsedData) return;
+    showDashboard();
+  });
+
+  const dashboardBackBtn = document.getElementById('dashboard-back-btn');
+  dashboardBackBtn?.addEventListener('click', () => {
+    hideDashboard();
+  });
 
   // ── Core upload ───────────────────────────────────────────────────────────
   async function uploadAndParse(file) {
@@ -594,6 +631,10 @@
 
   // ── Success ───────────────────────────────────────────────────────────────
   function handleSuccess(data, filename) {
+    // Store full dataset for dashboard — must be first so dashboard always
+    // has the complete response regardless of pagination state.
+    window._fullParsedData = data;
+
     setParseBtn(true);
     hideLoaderOverlay();
 
@@ -605,6 +646,9 @@
 
     // Update pagination UI after stats — totalPages is set by this point
     updatePaginationUI();
+
+    // Show dashboard button now that data is available
+    document.getElementById('dashboard-btn')?.removeAttribute('hidden');
 
     requestAnimationFrame(() => {
       document.getElementById('table-container')
