@@ -1180,10 +1180,6 @@ body {
 }
 
 /* ── Dashboard loader ────────────────────────────────────────────────────── */
-/*
-  Centered inside the panel, matches parser loader style.
-  Uses same backdrop approach as #loader-overlay.
-*/
 #dashboard-loader {
   display: flex;
   align-items: center;
@@ -1225,14 +1221,6 @@ body {
 }
 
 /* ── Dashboard toolbar ───────────────────────────────────────────────────── */
-/*
-  Three-zone flex row:
-    left  → back button
-    center → title + dataset label
-    right → (reserved / empty)
-  Uses negative margin trick to keep title truly centered even with
-  an asymmetric left element.
-*/
 .dashboard-toolbar {
   display: flex;
   align-items: center;
@@ -1283,8 +1271,7 @@ body {
   letter-spacing: 0.3px;
 }
 
-/* Back button — ghost style matching existing .btn-ghost,
-   but auto-width and no top margin so it fits the toolbar */
+/* Back button */
 .btn-back {
   display: inline-flex;
   align-items: center;
@@ -1316,10 +1303,6 @@ body {
 .btn-back:active { transform: scale(0.97); }
 
 /* ── Metric cards row ────────────────────────────────────────────────────── */
-/*
-  Four equal-width cards with glass effect.
-  Hover lifts card with subtle shadow — premium feel.
-*/
 .dashboard-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1347,7 +1330,6 @@ body {
   overflow: hidden;
 }
 
-/* Accent glow line at top of card */
 .dash-metric-card::before {
   content: '';
   position: absolute;
@@ -1389,7 +1371,6 @@ body {
   opacity: 0.7;
 }
 
-/* Accent variant — top IP, peak time */
 .dash-metric-card--accent .dash-metric-value { color: var(--accent); }
 .dash-metric-card--accent::before { opacity: 0.5; }
 .dash-metric-card--accent {
@@ -1402,23 +1383,16 @@ body {
 }
 
 /* ── Chart grid ──────────────────────────────────────────────────────────── */
-/*
-  2-column responsive grid.
-  Timeline spans full width (col-span-2).
-  All other charts are equal-height cards.
-*/
 .dashboard-charts {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 
-/* Timeline spans both columns */
 .dash-chart-card--wide {
   grid-column: 1 / -1;
 }
 
-/* Individual chart card */
 .dash-chart-card {
   display: flex;
   flex-direction: column;
@@ -1472,7 +1446,6 @@ body {
   min-height: 0;
 }
 
-/* Canvas sizing — wide card taller, regular cards balanced */
 .dash-chart-card--wide .dash-chart-body canvas {
   max-height: 220px;
 }
@@ -1522,7 +1495,7 @@ body {
 /* Insights list */
 #insights-list {
   list-style: none;
-  padding: 12px 0;
+  padding: 8px 0;
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -1530,16 +1503,15 @@ body {
 
 #insights-list li {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
-  padding: 9px 20px;
+  padding: 10px 20px;
   font-size: 12.5px;
   color: #7a9bb5;
   font-family: var(--font-ui);
   line-height: 1.5;
   border-bottom: 1px solid var(--border-subtle);
   transition: background var(--t-base), color var(--t-base);
-  position: relative;
 }
 
 #insights-list li:last-child { border-bottom: none; }
@@ -1549,16 +1521,83 @@ body {
   color: #a8c8e0;
 }
 
-/* Bullet — accent dot before each item */
-#insights-list li::before {
-  content: '';
-  width: 4px;
-  height: 4px;
-  background: var(--accent);
-  border-radius: 50%;
+/* Remove old dot bullet — replaced by severity badge from JS */
+#insights-list li::before { display: none; }
+
+/* ── Insight text span ───────────────────────────────────────────────────── */
+.insight-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.55;
+}
+
+/* ── Insight severity badges ─────────────────────────────────────────────── */
+/*
+  Three severity levels, each using existing design token colors:
+    info     → accent teal  (neutral / informational)
+    warning  → amber        (elevated — potential threat)
+    critical → danger red   (confirmed high-severity finding)
+
+  Badge is flex-shrink: 0 so it never wraps or compresses.
+  Width is fixed so all text columns align vertically.
+*/
+.insight-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  margin-top: 2px;
-  opacity: 0.6;
+  width: 58px;
+  padding: 2px 0;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* INFO — teal, matches accent */
+.insight-badge--info {
+  background: rgba(12, 181, 160, 0.10);
+  color: var(--accent);
+  border: 1px solid rgba(12, 181, 160, 0.22);
+}
+
+/* WARNING — amber */
+.insight-badge--warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  border: 1px solid var(--warning-border);
+}
+
+/* CRITICAL — red */
+.insight-badge--critical {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+}
+
+/* Severity-driven row accent — left border color per severity */
+#insights-list li[data-severity="warning"] {
+  border-left: 2px solid var(--warning);
+  padding-left: 18px;
+}
+
+#insights-list li[data-severity="critical"] {
+  border-left: 2px solid var(--danger);
+  padding-left: 18px;
+  background: rgba(232, 76, 66, 0.025);
+}
+
+#insights-list li[data-severity="critical"]:hover {
+  background: rgba(232, 76, 66, 0.05);
+  color: #c8a8a0;
+}
+
+#insights-list li[data-severity="info"] {
+  border-left: 2px solid transparent;
 }
 
 /* ── Dashboard responsive ────────────────────────────────────────────────── */
