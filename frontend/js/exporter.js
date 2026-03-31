@@ -14,7 +14,6 @@
    * @param {string} sourceFilename - Original uploaded filename
    */
   window.exportCSV = function (data, sourceFilename) {
-<<<<<<< HEAD
     // ── Full dataset resolution ───────────────────────────────────────────
     // Pagination is UI-only. Export must always use the complete dataset.
     // Priority:
@@ -30,22 +29,13 @@
     // Accept both `columns` (upload endpoint) and `fields` (alternate key)
     const columns = exportData.columns || exportData.fields || [];
     const rows    = Array.isArray(exportData.rows) ? exportData.rows : [];
-=======
-    // Accept both `columns` (upload endpoint) and `fields` (alternate key)
-    const columns = data.columns || data.fields || [];
-    const rows    = Array.isArray(data.rows) ? data.rows : [];
->>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
 
     if (columns.length === 0) { notify('No column definitions to export', 'error');   return; }
     if (rows.length === 0)    { notify('No data rows to export',          'warning'); return; }
 
     try {
       const csv      = buildCSV(columns, rows);
-<<<<<<< HEAD
       const filename = buildFilename(data, sourceFilename);   // filename meta from original arg
-=======
-      const filename = buildFilename(data, sourceFilename);
->>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
       triggerDownload(csv, filename);
       notify(`Exported ${rows.length.toLocaleString()} rows → ${filename}`, 'success', 3500);
     } catch (err) {
