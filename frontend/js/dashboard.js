@@ -6,6 +6,7 @@
  * Consumes:    window._fullParsedData (set by uploader.js)
  *
  * Charts (Chart.js):
+<<<<<<< HEAD
  *   - Timeline           (#chart-timeline)    blue   #3b82f6
  *   - Top Source IPs     (#chart-src-ips)     green  #22c55e
  *   - Top Dst Ports/IPs  (#chart-dst-ports)   amber  #f59e0b
@@ -15,6 +16,13 @@
  *   - Src Country        (#chart-src-country) pink   #ec4899  (new, optional)
  *   - Hourly Heatmap     (#chart-heatmap)     indigo #6366f1  (new, optional)
  *   - Action Dist.       (#chart-action)      orange #f97316  (new, optional)
+=======
+ *   - Timeline        (#chart-timeline)   blue   #3b82f6
+ *   - Top Source IPs  (#chart-src-ips)    green  #22c55e
+ *   - Top Dst Ports   (#chart-dst-ports)  amber  #f59e0b
+ *   - Status Codes    (#chart-status)     red    #ef4444  (optional)
+ *   - Protocol Dist.  (#chart-protocol)   purple #8b5cf6  (optional)
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
  *
  * Metrics:
  *   #metric-total · #metric-unique-ips · #metric-top-ip · #metric-peak-time
@@ -36,6 +44,7 @@
 
   // ── Color palette ─────────────────────────────────────────────────────────
   const COLOR = {
+<<<<<<< HEAD
     timeline:   '#3b82f6',
     spike:      '#ef4444',
     ips:        '#22c55e',
@@ -47,12 +56,22 @@
     heatmap:    '#6366f1',
     action:     '#f97316',
     dstIp:      '#06b6d4',
+=======
+    timeline: '#3b82f6',
+    spike:    '#ef4444',
+    ips:      '#22c55e',
+    ports:    '#f59e0b',
+    status:   '#ef4444',
+    protocol: '#8b5cf6',
+    dest:     '#06b6d4',
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   };
 
   // ── Animation duration ────────────────────────────────────────────────────
   const ANIM_DURATION = 800;
 
   // ── Spike detection threshold multiplier ─────────────────────────────────
+<<<<<<< HEAD
   const SPIKE_SIGMA = 2.5;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -197,15 +216,26 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+=======
+  // A bucket is a spike if its count exceeds mean + (SPIKE_SIGMA * stddev)
+  const SPIKE_SIGMA = 2.5;
+
+  // ─────────────────────────────────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   // PUBLIC ENTRY POINT
   // ─────────────────────────────────────────────────────────────────────────
 
   window.renderDashboard = function (data) {
+<<<<<<< HEAD
+=======
+    // 1. Validate
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (!data || !Array.isArray(data.rows) || data.rows.length === 0) {
       console.warn('[dashboard] renderDashboard: no rows to visualise.');
       return;
     }
 
+<<<<<<< HEAD
     showDashboardLoader();
 
     requestAnimationFrame(() => {
@@ -213,10 +243,32 @@
         const stats = processData(data.rows);
         renderMetrics(stats);
         renderCharts(stats);
+=======
+    // 2. Show loader
+    showDashboardLoader();
+
+    // Defer heavy work one frame so loader paints before processing
+    requestAnimationFrame(() => {
+      try {
+        // 3. Process (single pass)
+        const stats = processData(data.rows);
+
+        // 4. Metrics
+        renderMetrics(stats);
+
+        // 5. Charts
+        renderCharts(stats);
+
+        // 6. Insights
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
         renderInsights(stats);
       } catch (err) {
         console.error('[dashboard] render error:', err);
       } finally {
+<<<<<<< HEAD
+=======
+        // 7. Hide loader (always, even on error)
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
         hideDashboardLoader();
       }
     });
@@ -240,6 +292,7 @@
   // DATA PROCESSING  (single pass — safe for 1M+ rows)
   // ─────────────────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
   function processData(rows) {
     const n = rows.length;
 
@@ -263,6 +316,45 @@
     let hasDstIp       = false;
     let hasSrcCountry  = false;
     let hasAction      = false;
+=======
+  /**
+   * processData(rows) → stats object
+   *
+   * Single pass collecting:
+   *   - timeline buckets      (adaptive granularity by row count)
+   *   - src IP counts         (Map<ip, count>)
+   *   - dst IP counts         (Map<ip, count>)
+   *   - dst port counts       (Map<port, count>)
+   *   - status counts         (Map<status, count>)
+   *   - protocol counts       (Map<proto, count>)
+   *   - unique IPs            (Set<ip>)
+   *   - repeated patterns     (IPs with very high repeat rates)
+   *
+   * Post-pass:
+   *   - spike detection       (z-score on timeline buckets)
+   */
+  function processData(rows) {
+    const n = rows.length;
+
+    // ── Adaptive granularity ──────────────────────────────────────────────
+    // <10k   → per minute  (bucket to 'YYYY-MM-DD HH:MM')
+    // <100k  → per 5 min   (round minutes to nearest 5)
+    // >=100k → per hour    (bucket to 'YYYY-MM-DD HH')
+    const granularity = n < 10000 ? 'minute' : n < 100000 ? '5min' : 'hour';
+
+    const timelineBuckets = new Map();
+    const srcIpCounts     = new Map();
+    const dstIpCounts     = new Map();
+    const dstPortCounts   = new Map();
+    const statusCounts    = new Map();
+    const protocolCounts  = new Map();
+    const uniqueIps       = new Set();
+
+    let hasTimestamp = false;
+    let hasStatus    = false;
+    let hasProtocol  = false;
+    let hasDstIp     = false;
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
 
     for (let i = 0; i < n; i++) {
       const row = rows[i];
@@ -275,11 +367,14 @@
           hasTimestamp = true;
           timelineBuckets.set(bucket, (timelineBuckets.get(bucket) ?? 0) + 1);
         }
+<<<<<<< HEAD
         // Hourly heatmap bucket (0–23)
         const hourBucket = parseHourBucket(rawTs);
         if (hourBucket !== null) {
           hourlyBuckets.set(hourBucket, (hourlyBuckets.get(hourBucket) ?? 0) + 1);
         }
+=======
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
       }
 
       // ── Source IP ────────────────────────────────────────────────────────
@@ -317,6 +412,7 @@
         const protoStr = String(proto).toUpperCase();
         protocolCounts.set(protoStr, (protocolCounts.get(protoStr) ?? 0) + 1);
       }
+<<<<<<< HEAD
 
       // ── Source Country (NEW) ─────────────────────────────────────────────
       const country = row.src_country ?? row.srccountry ?? row.country ?? row.geo_country ?? null;
@@ -333,6 +429,8 @@
         const aStr = String(action).trim();
         actionCounts.set(aStr, (actionCounts.get(aStr) ?? 0) + 1);
       }
+=======
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     }
 
     // ── Sort timeline chronologically ─────────────────────────────────────
@@ -340,12 +438,15 @@
       a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0
     );
 
+<<<<<<< HEAD
     // ── Hourly heatmap — fill all 24 hours including zeros ────────────────
     const sortedHourly = Array.from({ length: 24 }, (_, h) => [
       String(h).padStart(2, '0') + ':00',
       hourlyBuckets.get(h) ?? 0,
     ]);
 
+=======
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     // ── Top lists ─────────────────────────────────────────────────────────
     const top10Ips = [...srcIpCounts.entries()]
       .sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -356,12 +457,15 @@
     const top10Ports = [...dstPortCounts.entries()]
       .sort((a, b) => b[1] - a[1]).slice(0, 10);
 
+<<<<<<< HEAD
     const top15Countries = [...srcCountryCounts.entries()]
       .sort((a, b) => b[1] - a[1]).slice(0, 15);
 
     const top10Actions = [...actionCounts.entries()]
       .sort((a, b) => b[1] - a[1]).slice(0, 10);
 
+=======
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     // ── Peak bucket ───────────────────────────────────────────────────────
     let peakBucket = null;
     let peakCount  = 0;
@@ -379,12 +483,24 @@
     const topPortCount = top10Ports.length > 0 ? top10Ports[0][1] : 0;
 
     // ── Repeated pattern detection ────────────────────────────────────────
+<<<<<<< HEAD
     const repeatedAttackers = top10Ips.filter(([, c]) => c / n > 0.15);
     const dominantIp        = repeatedAttackers.length > 0 ? repeatedAttackers[0] : null;
 
     const top3Share = top10Ips.slice(0, 3).reduce((sum, [, c]) => sum + c, 0);
     const top3Pct   = n > 0 ? Math.round((top3Share / n) * 100) : 0;
 
+=======
+    // Flag IPs where single IP contributes >15% of total traffic
+    const repeatedAttackers = top10Ips.filter(([, c]) => c / n > 0.15);
+    const dominantIp        = repeatedAttackers.length > 0 ? repeatedAttackers[0] : null;
+
+    // Top 3 IPs combined share
+    const top3Share = top10Ips.slice(0, 3).reduce((sum, [, c]) => sum + c, 0);
+    const top3Pct   = n > 0 ? Math.round((top3Share / n) * 100) : 0;
+
+    // Quiet periods — find the longest gap between events (if timeline exists)
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     const quietPeriod = findQuietPeriod(sortedTimeline);
 
     return {
@@ -401,16 +517,23 @@
       hasStatus,
       hasProtocol,
       hasDstIp,
+<<<<<<< HEAD
       hasSrcCountry,
       hasAction,
       sortedTimeline,
       sortedHourly,
+=======
+      sortedTimeline,
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
       spikeIndices,
       top10Ips,
       top10DstIps,
       top10Ports,
+<<<<<<< HEAD
       top15Countries,
       top10Actions,
+=======
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
       statusCounts,
       protocolCounts,
       dominantIp,
@@ -424,6 +547,16 @@
   // SPIKE DETECTION
   // ─────────────────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
+=======
+  /**
+   * detectSpikes(sortedTimeline) → Set<index>
+   *
+   * Uses z-score (standard deviation) to flag buckets significantly
+   * above the mean. Returns a Set of array indices that are spikes.
+   * Requires at least 4 buckets to produce meaningful statistics.
+   */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function detectSpikes(sortedTimeline) {
     const spikes = new Set();
     if (sortedTimeline.length < 4) return spikes;
@@ -441,9 +574,26 @@
     return spikes;
   }
 
+<<<<<<< HEAD
   function findQuietPeriod(sortedTimeline) {
     if (sortedTimeline.length < 3) return null;
     const minCount  = sortedTimeline.reduce((m, [, v]) => Math.min(m, v), Infinity);
+=======
+  /**
+   * findQuietPeriod(sortedTimeline) → string | null
+   *
+   * Finds the longest consecutive run of zero-activity buckets.
+   * Returns a human-readable label or null if timeline is too short.
+   */
+  function findQuietPeriod(sortedTimeline) {
+    if (sortedTimeline.length < 3) return null;
+
+    // Build a set of all bucket keys present
+    const keys      = sortedTimeline.map(([k]) => k);
+    const minCount  = sortedTimeline.reduce((m, [, v]) => Math.min(m, v), Infinity);
+
+    // Find bucket with lowest activity
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     const quietEntry = sortedTimeline.find(([, v]) => v === minCount);
     return quietEntry ? quietEntry[0] : null;
   }
@@ -460,16 +610,24 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+<<<<<<< HEAD
   // CHARTS — orchestrator
   // ─────────────────────────────────────────────────────────────────────────
 
   function renderCharts(stats) {
     // ── Existing charts (unchanged) ───────────────────────────────────────
+=======
+  // CHARTS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  function renderCharts(stats) {
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     renderTimelineChart(stats);
     renderSrcIpChart(stats);
     renderDestinationChart(stats);
     if (stats.hasStatus)   renderStatusChart(stats);
     if (stats.hasProtocol) renderProtocolChart(stats);
+<<<<<<< HEAD
 
     // ── New charts (conditional rendering) ───────────────────────────────
     if (stats.hasDstIp && stats.top10DstIps.length > 0) renderDstIpChart(stats);
@@ -491,6 +649,8 @@
       addExportButton('#dash-chart-heatmap',   'heatmap',   'soc_hourly_activity');
       addExportButton('#dash-chart-action',    'action',    'soc_action_types');
     }, 0);
+=======
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   }
 
   // ── Timeline (with spike highlighting) ───────────────────────────────────
@@ -506,9 +666,16 @@
       return;
     }
 
+<<<<<<< HEAD
     const labels = stats.sortedTimeline.map(([k]) => k);
     const values = stats.sortedTimeline.map(([, v]) => v);
 
+=======
+    const labels     = stats.sortedTimeline.map(([k]) => k);
+    const values     = stats.sortedTimeline.map(([, v]) => v);
+
+    // Point colours — spikes in red, normal in blue
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     const pointColors = values.map((_, i) =>
       stats.spikeIndices.has(i) ? COLOR.spike : COLOR.timeline
     );
@@ -516,6 +683,10 @@
       stats.spikeIndices.has(i) ? 5 : (labels.length > 200 ? 0 : 2)
     );
 
+<<<<<<< HEAD
+=======
+    // Spike annotation segments — color spike region background
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     const spikeSegmentPlugin = {
       id: 'spikeBackground',
       beforeDraw(chart) {
@@ -540,6 +711,7 @@
       data: {
         labels,
         datasets: [{
+<<<<<<< HEAD
           label:                `Events (${granLabel})`,
           data:                 values,
           borderColor:          COLOR.timeline,
@@ -550,6 +722,18 @@
           pointBorderColor:     pointColors,
           fill:                 true,
           tension:              0.35,
+=======
+          label:           `Events (${granLabel})`,
+          data:            values,
+          borderColor:     COLOR.timeline,
+          backgroundColor: hexAlpha(COLOR.timeline, 0.12),
+          borderWidth:     1.8,
+          pointRadius:     pointRadii,
+          pointBackgroundColor: pointColors,
+          pointBorderColor:     pointColors,
+          fill:            true,
+          tension:         0.35,
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
         }],
       },
       options: {
@@ -607,6 +791,7 @@
     const values  = stats.top10Ips.map(([, n]) => n);
     const maxVal  = values[0] ?? 1;
 
+<<<<<<< HEAD
     // High-frequency badge injection (top 3 IPs if they dominate)
     const headerEl = document.querySelector('#dash-chart-src-ips .dash-chart-header');
     if (headerEl && !headerEl.querySelector('.dash-high-freq-badge')) {
@@ -632,6 +817,9 @@
       }
     }
 
+=======
+    // Dominant attacker gets a brighter color
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     const bgColors = values.map((v, i) =>
       i === 0 ? hexAlpha(COLOR.ips, 0.90) : hexAlpha(COLOR.ips, 0.45 + (v / maxVal) * 0.35)
     );
@@ -702,8 +890,14 @@
     destroyChart('dst-ports');
     resetCanvas(canvas);
 
+<<<<<<< HEAD
     const useDstIp = stats.hasDstIp && stats.top10DstIps.length > 0;
     const usePort  = !useDstIp && stats.top10Ports.length > 0;
+=======
+    // Prefer dst IP if available, otherwise fall back to dst port
+    const useDstIp  = stats.hasDstIp && stats.top10DstIps.length > 0;
+    const usePort   = !useDstIp && stats.top10Ports.length > 0;
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
 
     if (!useDstIp && !usePort) {
       showChartEmpty(canvas, 'No destination data available');
@@ -713,14 +907,37 @@
     const entries = useDstIp ? stats.top10DstIps : stats.top10Ports;
     const values  = entries.map(([, v]) => v);
 
+<<<<<<< HEAD
     // Smart title detection
+=======
+    // ── Smart title detection (NEW — surgical addition only) ─────────────
+    //
+    // When falling back to dst_port values, the field may actually contain
+    // IP addresses (e.g. VPN logs where s_port maps to a remote IP string).
+    // Detect this at runtime and update the chart card title accordingly
+    // so the UI always reflects what the data actually contains.
+    //
+    // isLikelyIP: a value is treated as IP-like if it is a string containing
+    // a dot — this safely covers IPv4 ("1.2.3.4") and avoids false positives
+    // on plain integer port strings ("443", "8080").
+
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     function isLikelyIP(value) {
       return typeof value === 'string' && value.includes('.');
     }
 
     if (!useDstIp) {
+<<<<<<< HEAD
       const portValues  = entries.map(([k]) => k);
       const isIPDataset = portValues.some(v => isLikelyIP(v));
+=======
+      // Only run detection when using the dst_port fallback path.
+      // When useDstIp is true the title is always "Top Destination IPs"
+      // (already set in the HTML card), so no update is needed there.
+      const portValues = entries.map(([k]) => k);
+      const isIPDataset = portValues.some(v => isLikelyIP(v));
+
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
       const titleEl = document.querySelector('#dash-chart-dst-ports .dash-chart-title');
       if (titleEl) {
         titleEl.textContent = isIPDataset
@@ -728,8 +945,14 @@
           : 'Top Destination Ports';
       }
     }
+<<<<<<< HEAD
 
     const labels = entries.map(([k]) => useDstIp ? k : `Port ${k}`);
+=======
+    // ── end smart title detection ─────────────────────────────────────────
+
+    const labels  = entries.map(([k]) => useDstIp ? k : `Port ${k}`);
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
 
     _charts['dst-ports'] = new Chart(canvas, {
       type: 'bar',
@@ -797,12 +1020,20 @@
     const labels = entries.map(([k]) => k);
     const values = entries.map(([, v]) => v);
 
+<<<<<<< HEAD
+=======
+    // Semantic coloring for HTTP status ranges
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     const bgColors = labels.map((label, i) => {
       const code = parseInt(label, 10);
       if (code >= 200 && code < 300) return hexAlpha('#22c55e', 0.72);
       if (code >= 300 && code < 400) return hexAlpha('#3a8fe8', 0.72);
       if (code >= 400 && code < 500) return hexAlpha('#e09318', 0.72);
       if (code >= 500)               return hexAlpha('#ef4444', 0.72);
+<<<<<<< HEAD
+=======
+      // Non-HTTP (severity levels etc)
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
       const severityMap = {
         'error': hexAlpha('#ef4444', 0.80),
         'warn':  hexAlpha('#e09318', 0.80),
@@ -817,10 +1048,17 @@
       data: {
         labels,
         datasets: [{
+<<<<<<< HEAD
           data:             values,
           backgroundColor:  bgColors,
           borderColor:      'rgba(15,18,25,0.8)',
           borderWidth:      2,
+=======
+          data:            values,
+          backgroundColor: bgColors,
+          borderColor:     'rgba(15,18,25,0.8)',
+          borderWidth:     2,
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
           hoverBorderColor: 'rgba(255,255,255,0.15)',
           hoverBorderWidth: 2,
         }],
@@ -833,7 +1071,18 @@
         plugins: {
           legend: {
             position: 'right',
+<<<<<<< HEAD
             labels: { color: '#94a3b8', boxWidth: 10, boxHeight: 10, borderRadius: 3, padding: 10, font: { size: 11 } },
+=======
+            labels: {
+              color: '#94a3b8',
+              boxWidth: 10,
+              boxHeight: 10,
+              borderRadius: 3,
+              padding: 10,
+              font: { size: 11 },
+            },
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
           },
           tooltip: {
             backgroundColor: 'rgba(15,18,25,0.92)',
@@ -863,7 +1112,12 @@
     destroyChart('protocol');
     resetCanvas(canvas);
 
+<<<<<<< HEAD
     const entries = [...stats.protocolCounts.entries()].sort((a, b) => b[1] - a[1]);
+=======
+    const entries = [...stats.protocolCounts.entries()]
+      .sort((a, b) => b[1] - a[1]);
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
 
     if (entries.length === 0) {
       showChartEmpty(canvas, 'No protocol data available');
@@ -873,6 +1127,10 @@
     const labels = entries.map(([k]) => k);
     const values = entries.map(([, v]) => v);
 
+<<<<<<< HEAD
+=======
+    // Protocol-specific colors
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     const protoColorMap = {
       TCP:   hexAlpha('#8b5cf6', 0.82),
       UDP:   hexAlpha('#06b6d4', 0.82),
@@ -907,7 +1165,18 @@
         plugins: {
           legend: {
             position: 'right',
+<<<<<<< HEAD
             labels: { color: '#94a3b8', boxWidth: 10, boxHeight: 10, borderRadius: 3, padding: 10, font: { size: 11 } },
+=======
+            labels: {
+              color: '#94a3b8',
+              boxWidth: 10,
+              boxHeight: 10,
+              borderRadius: 3,
+              padding: 10,
+              font: { size: 11 },
+            },
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
           },
           tooltip: {
             backgroundColor: 'rgba(15,18,25,0.92)',
@@ -930,6 +1199,7 @@
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+<<<<<<< HEAD
   // NEW CHARTS
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -1226,17 +1496,40 @@
   // SMART INSIGHTS PANEL
   // ─────────────────────────────────────────────────────────────────────────
 
+=======
+  // SMART INSIGHTS PANEL
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * renderInsights(stats)
+   *
+   * Generates dynamic, data-driven SOC insights.
+   * Each insight has a severity tag: info / warning / critical
+   */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function renderInsights(stats) {
     const list = document.getElementById('insights-list');
     if (!list) return;
 
+<<<<<<< HEAD
     const items = [];
 
+=======
+    // Each item: { text, severity }
+    // severity: 'info' | 'warning' | 'critical'
+    const items = [];
+
+    // ── Summary ───────────────────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     items.push({
       text:     `Analyzed ${stats.totalEvents.toLocaleString()} log events across ${stats.uniqueIpCount.toLocaleString()} unique source IP${stats.uniqueIpCount !== 1 ? 's' : ''}.`,
       severity: 'info',
     });
 
+<<<<<<< HEAD
+=======
+    // ── Top attacker ──────────────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (stats.topIp) {
       const pct = stats.totalEvents > 0
         ? ((stats.topIpCount / stats.totalEvents) * 100).toFixed(1)
@@ -1247,6 +1540,10 @@
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ── Dominant IP (single source flooding) ──────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (stats.dominantIp) {
       const [ip, count] = stats.dominantIp;
       const pct = ((count / stats.totalEvents) * 100).toFixed(1);
@@ -1256,6 +1553,10 @@
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ── Top 3 concentration ───────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (stats.top10Ips.length >= 3 && stats.top3Pct > 0) {
       items.push({
         text:     `Top 3 source IPs account for ${stats.top3Pct}% of total traffic — ${stats.top3Pct > 50 ? 'highly concentrated source pattern' : 'moderate source distribution'}.`,
@@ -1263,6 +1564,10 @@
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ── Peak activity ─────────────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (stats.peakBucket) {
       items.push({
         text:     `Peak traffic observed at ${stats.peakBucket} with ${stats.peakCount.toLocaleString()} events${stats.granularity === 'hour' ? ' (hourly bucket)' : stats.granularity === '5min' ? ' (5-min bucket)' : ''}.`,
@@ -1270,6 +1575,10 @@
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ── Traffic spikes ────────────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (stats.spikeIndices.size > 0) {
       const spikeTimes = [...stats.spikeIndices]
         .slice(0, 3)
@@ -1281,6 +1590,10 @@
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ── Quiet period ──────────────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (stats.quietPeriod && stats.hasTimestamp) {
       items.push({
         text:     `Lowest activity period: ${stats.quietPeriod} — potential maintenance window or off-hours gap.`,
@@ -1288,6 +1601,10 @@
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ── Destination ───────────────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (stats.topPort) {
       items.push({
         text:     `Most targeted port: ${stats.topPort} with ${stats.topPortCount.toLocaleString()} connection${stats.topPortCount !== 1 ? 's' : ''}.`,
@@ -1303,6 +1620,7 @@
       });
     }
 
+<<<<<<< HEAD
     // ── Country insight (NEW) ─────────────────────────────────────────────
     if (stats.hasSrcCountry && stats.top15Countries.length > 0) {
       const [topCountry, topCountryCount] = stats.top15Countries[0];
@@ -1335,6 +1653,22 @@
       const serverErrors = [...stats.statusCounts.entries()]
         .filter(([k]) => parseInt(k, 10) >= 500)
         .reduce((s, [, v]) => s + v, 0);
+=======
+    // ── Status code anomalies ─────────────────────────────────────────────
+    if (stats.hasStatus && stats.statusCounts.size > 0) {
+      const totalStatus = [...stats.statusCounts.values()].reduce((s, v) => s + v, 0);
+
+      // Count 4xx errors
+      const clientErrors = [...stats.statusCounts.entries()]
+        .filter(([k]) => { const c = parseInt(k, 10); return c >= 400 && c < 500; })
+        .reduce((s, [, v]) => s + v, 0);
+
+      // Count 5xx errors
+      const serverErrors = [...stats.statusCounts.entries()]
+        .filter(([k]) => parseInt(k, 10) >= 500)
+        .reduce((s, [, v]) => s + v, 0);
+
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
       const errorPct = totalStatus > 0
         ? (((clientErrors + serverErrors) / totalStatus) * 100).toFixed(1)
         : '0';
@@ -1353,11 +1687,20 @@
       }
     }
 
+<<<<<<< HEAD
     if (stats.hasProtocol && stats.protocolCounts.size > 0) {
       const sorted     = [...stats.protocolCounts.entries()].sort((a, b) => b[1] - a[1]);
       const topProto   = sorted[0];
       const totalProto = sorted.reduce((s, [, v]) => s + v, 0);
       const domPct     = totalProto > 0
+=======
+    // ── Protocol insight ──────────────────────────────────────────────────
+    if (stats.hasProtocol && stats.protocolCounts.size > 0) {
+      const sorted    = [...stats.protocolCounts.entries()].sort((a, b) => b[1] - a[1]);
+      const topProto  = sorted[0];
+      const totalProto = sorted.reduce((s, [, v]) => s + v, 0);
+      const domPct    = totalProto > 0
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
         ? ((topProto[1] / totalProto) * 100).toFixed(1)
         : '0';
       items.push({
@@ -1366,6 +1709,10 @@
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ── No timestamp warning ──────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     if (!stats.hasTimestamp) {
       items.push({
         text:     'No timestamp fields detected — timeline chart and temporal analysis unavailable.',
@@ -1373,17 +1720,31 @@
       });
     }
 
+<<<<<<< HEAD
+=======
+    // ── Render ────────────────────────────────────────────────────────────
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
     list.innerHTML = '';
     for (const { text, severity } of items) {
       const li = document.createElement('li');
       li.setAttribute('data-severity', severity);
 
+<<<<<<< HEAD
       const badge = document.createElement('span');
       badge.className   = `insight-badge insight-badge--${severity}`;
       badge.textContent = severity.toUpperCase();
 
       const textNode = document.createElement('span');
       textNode.className   = 'insight-text';
+=======
+      // Severity badge
+      const badge = document.createElement('span');
+      badge.className = `insight-badge insight-badge--${severity}`;
+      badge.textContent = severity.toUpperCase();
+
+      const textNode = document.createElement('span');
+      textNode.className = 'insight-text';
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
       textNode.textContent = text;
 
       li.appendChild(badge);
@@ -1396,6 +1757,21 @@
   // UTILITIES
   // ─────────────────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
+=======
+  /**
+   * parseBucket(rawTs, granularity) → string or null
+   *
+   * Handles:
+   *   - ISO 8601 / MySQL-style datetime strings
+   *   - Unix timestamps (seconds or ms)
+   *
+   * Granularity:
+   *   'minute' → 'YYYY-MM-DD HH:MM'
+   *   '5min'   → 'YYYY-MM-DD HH:M0' (rounded to nearest 5)
+   *   'hour'   → 'YYYY-MM-DD HH'
+   */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function parseBucket(rawTs, granularity = 'minute') {
     if (rawTs == null || rawTs === '' || rawTs === '-') return null;
 
@@ -1422,6 +1798,7 @@
   }
 
   /**
+<<<<<<< HEAD
    * parseHourBucket(rawTs) → hour integer (0–23) or null
    * Used for the 24-hour activity heatmap.
    */
@@ -1439,6 +1816,10 @@
     return d.getHours();
   }
 
+=======
+   * isValidIpLike(val) — rejects placeholder / null-like values.
+   */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function isValidIpLike(val) {
     if (!val) return false;
     const s = String(val).trim().toLowerCase();
@@ -1447,6 +1828,10 @@
     return true;
   }
 
+<<<<<<< HEAD
+=======
+  /** Destroy a Chart.js instance by key if it exists. */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function destroyChart(key) {
     if (_charts[key]) {
       _charts[key].destroy();
@@ -1454,6 +1839,13 @@
     }
   }
 
+<<<<<<< HEAD
+=======
+  /**
+   * resetCanvas(canvas) — re-shows canvas and removes any previous
+   * empty-state message so re-renders start clean.
+   */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function resetCanvas(canvas) {
     canvas.style.display = '';
     const wrapper = canvas.parentElement;
@@ -1462,6 +1854,10 @@
     if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
   }
 
+<<<<<<< HEAD
+=======
+  /** Show a plain-text empty state message inside a canvas wrapper. */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function showChartEmpty(canvas, message) {
     const wrapper = canvas.parentElement;
     if (!wrapper) return;
@@ -1485,11 +1881,19 @@
     msg.style.display = 'block';
   }
 
+<<<<<<< HEAD
+=======
+  /** Safe DOM text setter — no-op if element not found. */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function setText(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
   }
 
+<<<<<<< HEAD
+=======
+  /** hexAlpha('#rrggbb', alpha) → 'rgba(r,g,b,a)' */
+>>>>>>> a971a96c01ed6eb08b07a233b9a913ec88e27d4d
   function hexAlpha(hex, alpha) {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
