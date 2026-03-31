@@ -1,0 +1,82 @@
+[
+  {
+    "id": "iis_w3c",
+    "name": "IIS W3C Extended Log Format",
+    "log_type": "web_server",
+    "pattern": "^(?P<date>\\d{4}-\\d{2}-\\d{2})\\s+(?P<time>\\d{2}:\\d{2}:\\d{2})\\s+(?P<s_ip>[\\d.]+)\\s+(?P<cs_method>\\S+)\\s+(?P<cs_uri_stem>\\S+)\\s+(?P<cs_uri_query>\\S+)\\s+(?P<s_port>\\d+)\\s+(?P<cs_username>\\S+)\\s+(?P<c_ip>[\\d.]+)\\s+(?P<cs_user_agent>\\S+)\\s+(?P<cs_referer>\\S+)\\s+(?P<sc_status>\\d{3})\\s+(?P<sc_substatus>\\d+)\\s+(?P<sc_win32_status>\\d+)\\s+(?P<time_taken>\\d+)$",
+    "fields": [
+      "date", "time", "s_ip", "cs_method", "cs_uri_stem",
+      "cs_uri_query", "s_port", "cs_username", "c_ip",
+      "cs_user_agent", "cs_referer", "sc_status",
+      "sc_substatus", "sc_win32_status", "time_taken"
+    ],
+    "sample": "2024-03-07 00:00:00 192.168.100.81 POST /CRMWebService/CRMWebService.asmx/GetCardData - 80 - 192.168.100.161 - - 200 0 0 126"
+  },
+  {
+    "id": "iis_w3c_with_agents",
+    "name": "IIS W3C Log Format with User-Agent and Referer",
+    "log_type": "web_server",
+    "pattern": "^(?P<date>\\d{4}-\\d{2}-\\d{2})\\s+(?P<time>\\d{2}:\\d{2}:\\d{2})\\s+(?P<s_ip>[\\d.]+)\\s+(?P<cs_method>\\S+)\\s+(?P<cs_uri_stem>\\S+)\\s+(?P<cs_uri_query>\\S+)\\s+(?P<s_port>\\d+)\\s+(?P<cs_username>\\S+)\\s+(?P<c_ip>[\\d.]+)\\s+\"(?P<cs_user_agent>[^\"]+)\"\\s+\"(?P<cs_referer>[^\"]+)\"\\s+(?P<sc_status>\\d{3})\\s+(?P<sc_substatus>\\d+)\\s+(?P<sc_win32_status>\\d+)\\s+(?P<time_taken>\\d+)$",
+    "fields": [
+      "date", "time", "s_ip", "cs_method", "cs_uri_stem",
+      "cs_uri_query", "s_port", "cs_username", "c_ip",
+      "cs_user_agent", "cs_referer", "sc_status",
+      "sc_substatus", "sc_win32_status", "time_taken"
+    ],
+    "sample": "2024-03-07 00:00:00 192.168.1.1 GET /index.html - 443 user 10.0.0.1 \"Mozilla/5.0\" \"https://referrer.com\" 200 0 0 45"
+  },
+  {
+    "id": "apache_combined",
+    "name": "Apache Combined Log Format",
+    "log_type": "web_server",
+    "pattern": "^(?P<c_ip>[\\d.]+)\\s+\\S+\\s+(?P<cs_username>\\S+)\\s+\\[(?P<timestamp>[^\\]]+)\\]\\s+\"(?P<cs_method>\\S+)\\s+(?P<cs_uri_stem>\\S+)\\s+\\S+\"\\s+(?P<sc_status>\\d{3})\\s+(?P<bytes>\\d+|-)(?:\\s+\"(?P<cs_referer>[^\"]*)\"\\s+\"(?P<cs_user_agent>[^\"]*)\")?",
+    "fields": [
+      "c_ip", "cs_username", "timestamp", "cs_method",
+      "cs_uri_stem", "sc_status", "bytes",
+      "cs_referer", "cs_user_agent"
+    ],
+    "sample": "192.168.1.1 - admin [10/Oct/2024:13:55:36 -0700] \"GET /index.html HTTP/1.1\" 200 2326 \"-\" \"Mozilla/5.0\""
+  },
+  {
+    "id": "nginx_access",
+    "name": "Nginx Access Log",
+    "log_type": "web_server",
+    "pattern": "^(?P<c_ip>[\\d.]+)\\s+-\\s+(?P<cs_username>\\S+)\\s+\\[(?P<timestamp>[^\\]]+)\\]\\s+\"(?P<cs_method>\\S+)\\s+(?P<cs_uri_stem>\\S+)\\s+\\S+\"\\s+(?P<sc_status>\\d{3})\\s+(?P<bytes>\\d+)\\s+\"(?P<cs_referer>[^\"]*)\"\\s+\"(?P<cs_user_agent>[^\"]*)\"",
+    "fields": [
+      "c_ip", "cs_username", "timestamp", "cs_method",
+      "cs_uri_stem", "sc_status", "bytes",
+      "cs_referer", "cs_user_agent"
+    ],
+    "sample": "10.0.0.5 - - [10/Oct/2024:13:55:36 +0000] \"POST /api/login HTTP/1.1\" 401 512 \"-\" \"curl/7.68.0\""
+  },
+  {
+    "id": "linux_auth",
+    "name": "Linux Authentication Log",
+    "log_type": "authentication",
+    "pattern": "^(?P<timestamp>\\w{3}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2})\\s+(?P<hostname>\\S+)\\s+(?P<process>\\S+?)(?:\\[(?P<pid>\\d+)\\])?:\\s+(?P<action>Failed|Accepted|Invalid|Disconnected)\\s+(?P<auth_method>\\S+)\\s+for\\s+(?:invalid user\\s+)?(?P<cs_username>\\S+)\\s+from\\s+(?P<c_ip>[\\d.]+)\\s+port\\s+(?P<s_port>\\d+)",
+    "fields": [
+      "timestamp", "hostname", "process", "pid",
+      "action", "auth_method", "cs_username", "c_ip", "s_port"
+    ],
+    "sample": "Oct 10 13:55:36 server01 sshd[1234]: Failed password for admin from 192.168.1.50 port 54321 ssh2"
+  },
+  {
+    "id": "syslog_rfc3164",
+    "name": "Syslog RFC 3164",
+    "log_type": "syslog",
+    "pattern": "^(?P<timestamp>\\w{3}\\s+\\d{1,2}\\s+\\d{2}:\\d{2}:\\d{2})\\s+(?P<hostname>\\S+)\\s+(?P<process>\\S+?)(?:\\[(?P<pid>\\d+)\\])?:\\s+(?P<message>.+)$",
+    "fields": ["timestamp", "hostname", "process", "pid", "message"],
+    "sample": "Oct 10 13:55:36 server01 sshd[1234]: Failed password for admin from 10.0.0.1 port 22 ssh2"
+  },
+  {
+    "id": "cisco_asa",
+    "name": "Cisco ASA Firewall",
+    "log_type": "firewall",
+    "pattern": "^(?P<timestamp>\\w{3}\\s+\\d{2}\\s+\\d{4}\\s+\\d{2}:\\d{2}:\\d{2}):\\s+%ASA-\\d-(?P<message_id>\\d+):\\s+(?P<action>Built|Teardown|Denied)\\s+(?P<protocol>\\w+)\\s+connection.*?for\\s+\\w+:(?P<s_ip>[\\d.]+)/(?P<s_port>\\d+)\\s+to\\s+\\w+:(?P<c_ip>[\\d.]+)/(?P<c_port>\\d+)",
+    "fields": [
+      "timestamp", "message_id", "action",
+      "protocol", "s_ip", "s_port", "c_ip", "c_port"
+    ],
+    "sample": "Oct 10 2024 13:55:36: %ASA-6-302013: Built TCP connection for inside:192.168.1.10/12345 to outside:8.8.8.8/443"
+  }
+]

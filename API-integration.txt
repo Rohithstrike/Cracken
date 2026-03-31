@@ -1,0 +1,95 @@
+AI Provider & API Key Integration Guide
+1️⃣ Current Backend Setup
+
+The project backend supports AI providers: Ollama, OpenAI, and Claude.
+
+Provider selection is based on the AI_PROVIDER setting in backend/config.py or .env.
+
+Ollama currently works locally without an API key.
+
+Workflow:
+
+Log lines → AI Engine → Selected AI Provider → LLM (Ollama/OpenAI/Claude)
+
+AI responses are parsed by _parse_ai_response() in backend/ai/ai_engine.py.
+
+Regex and fields are extracted for further log processing.
+
+All existing tests (test.py) pass successfully.
+
+2️⃣ When an API Key Is Needed
+
+If a provider requires authentication (e.g., OpenAI cloud), follow these steps.
+
+a) Update Environment Files
+
+Add your provider and API key to .env:
+
+# AI provider selection
+AI_PROVIDER=openai  # or ollama, or claude
+
+# API key for provider
+AI_PROVIDER_KEY=your-secret-api-key
+
+⚠️ Do not commit .env or API-integration.txt — keep secrets safe.
+
+b) Update backend/config.py
+
+Modify config.py to read environment variables:
+
+import os
+
+AI_PROVIDER = os.getenv("AI_PROVIDER", "ollama")
+AI_PROVIDER_KEY = os.getenv("AI_PROVIDER_KEY", None)
+
+AI_PROVIDER: selects the AI backend.
+
+AI_PROVIDER_KEY: used by providers that require authentication.
+
+c) Use the API Key in Provider Wrappers
+
+Example for OpenAI (backend/ai/openai_provider.py):
+
+import openai
+from backend.config import AI_PROVIDER_KEY
+
+class OpenAIProvider:
+    def __init__(self):
+        openai.api_key = AI_PROVIDER_KEY
+
+    async def generate_regex(self, sanitized_log_sample: str):
+        # call OpenAI API using the key
+        ...
+
+Ollama or Claude wrappers can similarly use AI_PROVIDER_KEY if needed.
+
+_get_provider() in ai_engine.py remains unchanged.
+
+d) Verify Integration
+
+Add API key to .env.
+
+Restart your backend environment.
+
+Run the regex parser tests:
+
+python test.py
+
+Check logs for AI provider selection and generated regex.
+
+3️⃣ Summary Table
+Step	Action
+1	Add AI_PROVIDER and AI_PROVIDER_KEY to .env
+2	Update backend/config.py to read these variables
+3	Use the key in the provider wrapper (OpenAIProvider, etc.)
+4	No changes needed in _parse_ai_response()
+5	Run tests to verify regex parsing works
+✅ Key Notes
+
+_parse_ai_response() works independently of API keys.
+
+Adding a key only affects provider authentication.
+
+Environment variables are preferred; never commit secrets to Git.
+
+Keep .env and API-integration.txt in .gitignore.
