@@ -388,6 +388,7 @@
   function setFile(file) {
     if (!file || !validateFile(file)) return;
     selectedFile             = file;
+    window._exportFile       = file;   // ✅ FIX 1: store reference for exporter.js
     fileInfoName.textContent = file.name;
     fileInfoSize.textContent = formatBytes(file.size);
     fileInfoCard.removeAttribute('hidden');
@@ -397,9 +398,10 @@
 
   function clearFile() {
     abortController?.abort();
-    abortController = null;
-    selectedFile    = null;
-    fileInput.value = '';
+    abortController      = null;
+    selectedFile         = null;
+    window._exportFile   = null;   // ✅ FIX 1: clear alongside selectedFile
+    fileInput.value      = '';
     fileInfoCard.setAttribute('hidden', '');
     setParseBtn(false);
     setProcessing(false);
@@ -631,8 +633,9 @@
 
   // ── Success ───────────────────────────────────────────────────────────────
   function handleSuccess(data, filename) {
-    // Store full dataset for dashboard — must be first so dashboard always
-    // has the complete response regardless of pagination state.
+    // Store full dataset for dashboard and export — must be first so both
+    // features always operate on the complete response regardless of the
+    // current pagination page.
     window._fullParsedData = data;
 
     setParseBtn(true);
@@ -718,14 +721,32 @@
       else if (data.pattern_source)               appendTag(metaTags, data.pattern_source, 'source');
     }
 
+    // ── Export button ─────────────────────────────────────────────────────
+    //
+    // exportCSV() re-uploads window._exportFile with page_size=-1 to fetch
+    // ALL rows from the backend in one request — pagination is bypassed.
+    // The toast is fired inside exporter.js with the real full row count.
+    // ─────────────────────────────────────────────────────────────────────
     const exportBtn = document.getElementById('export-btn');
     if (exportBtn) {
       exportBtn.disabled = false;
       exportBtn.setAttribute('aria-disabled', 'false');
+
       exportBtn.onclick = () => {
-        if (typeof window.exportCSV === 'function') window.exportCSV(data, filename);
+        if (!window._exportFile) {
+          window.toastNotify('No file available to export.', 'error', 3500);
+          return;
+        }
+        if (typeof window.exportCSV === 'function') {
+          // ✅ FIX 2: pass window._fullParsedData for filename/meta only;
+          // exporter.js fetches ALL rows itself via page_size=-1.
+          // ✅ FIX 3: toast is fired inside exporter.js — removed from here
+          //           to prevent the duplicate toast.
+          window.exportCSV(window._fullParsedData, filename);
+        }
       };
     }
+    // ── end export button ─────────────────────────────────────────────────
   }
 
   function setText(id, value) {

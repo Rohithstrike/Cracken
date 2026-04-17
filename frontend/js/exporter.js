@@ -1,12 +1,14 @@
 /**
  * exporter.js
  * Exports the FULL parsed dataset as a downloadable CSV.
- * Operates on backend response rows directly — never on DOM state.
+ * Fetches ALL rows from the backend using page_size=-1 (no pagination).
  * RFC 4180 quoting, UTF-8 BOM for Excel auto-detection.
  */
 
 (() => {
   'use strict';
+
+  const API_ENDPOINT = 'http://localhost:8000/api/upload';
 
   /**
    * window.exportCSV(data, sourceFilename)
@@ -14,34 +16,61 @@
    * @param {string} sourceFilename - Original uploaded filename
    */
   window.exportCSV = function (data, sourceFilename) {
-    // ── Full dataset resolution ───────────────────────────────────────────
-    // Pagination is UI-only. Export must always use the complete dataset.
-    // Priority:
-    //   1. window._fullParsedData — set by uploader.js after every parse;
-    //      contains ALL rows regardless of the current pagination page.
-    //   2. data argument — fallback for callers that pass the full response
-    //      directly (backward-compatible with pre-pagination behaviour).
-    const fullData   = window._fullParsedData || data;
-    const exportData = (fullData && Array.isArray(fullData.rows) && fullData.rows.length > 0)
-      ? fullData
-      : data;
+    // ── Fetch ALL rows via page_size=-1 ───────────────────────────────────
+    // The backend paginates by default (100 rows/page).
+    // page_size=-1 is a sentinel that disables pagination entirely and
+    // returns all rows in one response — no slicing, no page state needed.
+    //
+    // We re-upload the original file because the frontend never holds the
+    // full dataset in memory — window._fullParsedData only has the current
+    // page slice (e.g. 100 of 2245 rows).
+    //
+    // The stored file reference is window._exportFile, set by uploader.js
+    // at parse time so we always have the original File object available.
 
-    // Accept both `columns` (upload endpoint) and `fields` (alternate key)
-    const columns = exportData.columns || exportData.fields || [];
-    const rows    = Array.isArray(exportData.rows) ? exportData.rows : [];
+    const file = window._exportFile;
 
-    if (columns.length === 0) { notify('No column definitions to export', 'error');   return; }
-    if (rows.length === 0)    { notify('No data rows to export',          'warning'); return; }
-
-    try {
-      const csv      = buildCSV(columns, rows);
-      const filename = buildFilename(data, sourceFilename);   // filename meta from original arg
-      triggerDownload(csv, filename);
-      notify(`Exported ${rows.length.toLocaleString()} rows → ${filename}`, 'success', 3500);
-    } catch (err) {
-      notify(`Export failed: ${err.message}`, 'error');
-      console.error('[exporter]', err);
+    if (!file) {
+      notify('No file available for export. Please re-upload the file.', 'error', 4000);
+      return;
     }
+
+    // Show a loading toast while the fetch is in progress
+    notify('Preparing full export…', 'info', 3000);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // page_size=-1 tells the backend to skip pagination and return ALL rows
+    const url = `${API_ENDPOINT}?page=1&page_size=-1`;
+
+    fetch(url, { method: 'POST', body: formData })
+      .then(res => {
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        return res.json();
+      })
+      .then(fullData => {
+        const columns = fullData.columns || fullData.fields || [];
+        const rows    = Array.isArray(fullData.rows) ? fullData.rows : [];
+
+        if (columns.length === 0) { notify('No column definitions to export', 'error');   return; }
+        if (rows.length === 0)    { notify('No data rows to export',          'warning'); return; }
+
+        try {
+          const csv      = buildCSV(columns, rows);
+          const filename = buildFilename(data, sourceFilename);  // use original data for filename meta
+          triggerDownload(csv, filename);
+          // Single toast fired here with accurate full row count
+          notify(`Exported ${rows.length.toLocaleString()} rows`, 'success', 3500);
+        } catch (err) {
+          notify(`Export failed: ${err.message}`, 'error');
+          console.error('[exporter]', err);
+        }
+      })
+      .catch(err => {
+        notify(`Export failed: ${err.message}`, 'error', 5000);
+        console.error('[exporter] fetch error', err);
+      });
   };
 
   // ── CSV builder ──────────────────────────────────────────────────────────────

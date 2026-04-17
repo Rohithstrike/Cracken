@@ -39,6 +39,9 @@ DEFAULT_PAGE      = 1
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE     = 500
 
+# Sentinel value: page_size=-1 means "return all rows" (used by CSV export)
+PAGE_SIZE_ALL = -1
+
 
 @router.post(
     "/upload",
@@ -48,7 +51,8 @@ MAX_PAGE_SIZE     = 500
         "and returns structured data. "
         "Supports optional pattern_id for manual format selection, "
         "format=csv for CSV download, and preview_only=true for large files. "
-        "Supports server-side pagination via page and page_size query params."
+        "Supports server-side pagination via page and page_size query params. "
+        "Pass page_size=-1 to return all rows with no pagination (used for export)."
     ),
     response_model=None,
 )
@@ -83,16 +87,18 @@ async def upload_log_file(
         description=(
             "Page number to return (1-based). "
             "Used for server-side pagination of large datasets. "
-            "Ignored when format=csv (CSV always returns full dataset)."
+            "Ignored when format=csv (CSV always returns full dataset). "
+            "Ignored when page_size=-1 (all rows mode)."
         ),
     ),
     page_size: int = Query(
         default=DEFAULT_PAGE_SIZE,
-        ge=1,
+        ge=-1,                          # -1 = all rows; 0 is still invalid
         le=MAX_PAGE_SIZE,
         description=(
             f"Number of rows per page (default {DEFAULT_PAGE_SIZE}, "
             f"max {MAX_PAGE_SIZE}). "
+            "Pass -1 to disable pagination and return ALL rows. "
             "Ignored when format=csv (CSV always returns full dataset)."
         ),
     ),
@@ -113,6 +119,7 @@ async def upload_log_file(
         7. VT enrichment — append src_vt_reputation and dst_vt_reputation
         8. Preview slice — if preview_only, cap rows at MAX_PREVIEW_ROWS
         9. Pagination    — slice rows for requested page (JSON only)
+                          Skipped entirely when page_size=-1 (all rows mode)
        10. Respond       — JSON or CSV
 
     AI fallback notes:
@@ -150,6 +157,8 @@ async def upload_log_file(
         - page > total_pages returns an empty rows list (not an error)
         - CSV export always returns the full dataset regardless of page/page_size
         - preview_only takes precedence over pagination when both are supplied
+        - page_size=-1 disables pagination entirely — all rows are returned in
+          a single JSON response; used by the frontend export flow
     """
     logger.info(
         "upload_received",
@@ -273,6 +282,7 @@ async def upload_log_file(
     # ── Step 9b: Server-side pagination ───────────────────────────────────
     # Only applied to JSON responses and only when preview_only=False.
     # CSV always uses the full `rows` list — pagination is never applied.
+    # page_size=-1 disables pagination — all rows returned in one response.
     #
     # total_rows  → full matched row count (always reflects full dataset)
     # total_pages → ceil(total_rows / page_size), minimum 1
@@ -280,13 +290,23 @@ async def upload_log_file(
     #
     # If page > total_pages the slice produces an empty list — this is
     # intentional and not treated as an error (caller handles empty rows).
-    total_rows  = matched_count
-    total_pages = max(1, ceil(total_rows / page_size))
+    total_rows = matched_count
 
-    if not preview_only:
+    # ── page_size=-1 → ALL ROWS mode (no pagination) ──────────────────────
+    # Used by the frontend export flow to fetch the complete dataset in a
+    # single request without switching to format=csv.
+    # total_pages is reported as 1 since everything fits in one response.
+    if page_size == PAGE_SIZE_ALL:
+        total_pages   = 1
+        # response_rows already holds the full dataset from Step 9
+        # (preview_only=False in export calls, so no slicing happened)
+    elif not preview_only:
+        total_pages   = max(1, ceil(total_rows / page_size))
         start         = (page - 1) * page_size
         end           = start + page_size
         response_rows = response_rows[start:end]
+    else:
+        total_pages   = max(1, ceil(total_rows / page_size))
 
     logger.info(
         "parse_complete",

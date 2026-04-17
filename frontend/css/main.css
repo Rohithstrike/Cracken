@@ -1,4 +1,4 @@
-/* ─────────────────────────────────────────────────────────────────────────────
+ /* ─────────────────────────────────────────────────────────────────────────────
    SOC Log Parser — Design System
    Theme: Deep slate dark / electric cyan accent / Inter + JetBrains Mono
    Inspired by: Kibana, Splunk, Datadog dark mode
@@ -8,12 +8,6 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ── Hidden override — fixes display:flex/grid overriding [hidden] ────────── */
-/*
-  Elements styled with display:flex or display:grid ignore the browser's
-  built-in [hidden]{display:none} because class selectors have higher
-  specificity than attribute selectors. This block restores correct behaviour
-  for every panel toggled by JS with setAttribute('hidden','').
-*/
 .empty-state[hidden],
 .error-panel[hidden],
 .loader-panel[hidden],
@@ -26,48 +20,32 @@
 /* ── Design tokens ────────────────────────────────────────────────────────── */
 :root {
 
-  /* ── Backgrounds
-       Five-stop depth scale. Each stop is 6–8 pts lighter than the last.
-       The separation between sidebar (surface) and content (base) is
-       intentional — it creates the layered panel feel of Kibana/Splunk.
-  ── */
-  --bg-base:     #0b0d11;   /* page base — deepest layer */
-  --bg-surface:  #0f1219;   /* sidebar, secondary panels */
-  --bg-raised:   #141c28;   /* toolbar, cards, loader box */
-  --bg-elevated: #1b2536;   /* inputs, stat cards, tag backgrounds */
-  --bg-hover:    #223044;   /* interactive hover target */
-  --bg-content:  #0d1018;   /* content area — slightly off base for depth */
+  /* ── Backgrounds ── */
+  --bg-base:     #0b0d11;
+  --bg-surface:  #0f1219;
+  --bg-raised:   #141c28;
+  --bg-elevated: #1b2536;
+  --bg-hover:    #223044;
+  --bg-content:  #0d1018;
 
-  /* ── Borders
-       Three opacity levels. Use subtle for ambient separators,
-       mild for interactive borders, strong for focused/active states.
-  ── */
+  /* ── Borders ── */
   --border-subtle: rgba(255, 255, 255, 0.042);
   --border-mild:   rgba(255, 255, 255, 0.075);
   --border-strong: rgba(255, 255, 255, 0.115);
 
-  /* ── Text
-       Primary is near-white (not pure white — too harsh on dark).
-       Secondary handles labels, meta, subtitles.
-       Muted handles row numbers, separators, placeholders.
-       Code is a desaturated cyan — distinct from accent without competing.
-  ── */
+  /* ── Text ── */
   --text-primary:   #ffffff;
   --text-secondary: #ffffff;
   --text-muted:     #ffffff;
   --text-code:      #5ab8d6;
 
-  /* ── Accent
-       Electric teal — SOC-grade, not consumer-app blue.
-       Bright is the hover state (5% lighter).
-       Dim is for backgrounds, glows, focus rings.
-  ── */
+  /* ── Accent ── */
   --accent:        #0cb5a0;
   --accent-bright: #0dd4bc;
   --accent-dim:    rgba(12, 181, 160, 0.10);
   --accent-glow:   rgba(12, 181, 160, 0.24);
 
-  /* ── Semantic colours — each has a solid, bg tint, and border variant ── */
+  /* ── Semantic colours ── */
   --success:        #28c776;
   --success-bg:     rgba(40, 199, 118, 0.08);
   --success-border: rgba(40, 199, 118, 0.18);
@@ -84,16 +62,12 @@
   --info-bg:        rgba(58, 143, 232, 0.08);
   --info-border:    rgba(58, 143, 232, 0.18);
 
-  /* ── Status pill — CSS variable tokens toggled by JS class ── */
+  /* ── Status pill ── */
   --status-color:  var(--success);
   --status-bg:     var(--success-bg);
   --status-border: var(--success-border);
 
-  /* ── Typography
-       Inter for UI chrome — designed for screen readability at 11–14px.
-       JetBrains Mono for all data, code, timestamps, IPs — fixed-width
-       makes log data scannable in dense rows.
-  ── */
+  /* ── Typography ── */
   --font-ui:   'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Consolas', 'Fira Code', monospace;
 
@@ -104,16 +78,25 @@
   --radius-md: 7px;
   --radius-lg: 11px;
 
-  /* ── Motion — three-tier timing system ── */
-  --t-fast: 110ms cubic-bezier(0.4, 0, 0.2, 1);   /* micro: button press, icon swap */
-  --t-base: 170ms cubic-bezier(0.4, 0, 0.2, 1);   /* base: hover, focus, border */
-  --t-slow: 290ms cubic-bezier(0.4, 0, 0.2, 1);   /* slow: panel transitions, overlays */
+  /* ── Motion ── */
+  --t-fast: 110ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-base: 170ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-slow: 290ms cubic-bezier(0.4, 0, 0.2, 1);
 
   --transition:      var(--t-base);
   --transition-slow: var(--t-slow);
+
+  /* ── Dashboard glass tokens (new) ── */
+  --glass-bg:     rgba(20, 28, 40, 0.60);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-blur:   16px;
+  --glass-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
-/* ── Fonts — Inter via Google Fonts ──────────────────────────────────────── */
+/* ── Fonts ────────────────────────────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ── Base ─────────────────────────────────────────────────────────────────── */
@@ -154,7 +137,6 @@ body {
 .table-scroll-wrap::-webkit-scrollbar-thumb:hover  { background: #406080; }
 .table-scroll-wrap::-webkit-scrollbar-thumb:active { background: var(--accent); }
 
-/* Firefox */
 *                  { scrollbar-width: thin; scrollbar-color: #283d52 transparent; }
 .table-scroll-wrap { scrollbar-color: #2e4560 var(--bg-raised); }
 
@@ -280,7 +262,6 @@ body {
   --status-border: var(--danger-border);
 }
 
-/* Checking state — amber/warning — backend busy but not confirmed down */
 .status-pill.status--checking {
   --status-color:  var(--warning);
   --status-bg:     var(--warning-bg);
@@ -565,12 +546,7 @@ body {
   border-color: var(--border-strong);
 }
 
-/* ── Dashboard button — identical spec to .btn-export ────────────────────── */
-/*
-  Intentionally mirrors .btn-export exactly:
-  same height, padding, font-size, border-radius, hover effect, icon gap.
-  Both live in the sidebar stats section so they must be visually identical.
-*/
+/* ── Dashboard button ─────────────────────────────────────────────────────── */
 .btn-dashboard {
   background: var(--bg-elevated);
   color: var(--text-secondary);
@@ -703,7 +679,7 @@ body {
   line-height: 1.65;
 }
 
-/* ── Loader overlay — covers content area during processing ──────────────── */
+/* ── Loader overlay ───────────────────────────────────────────────────────── */
 #loader-overlay {
   position: absolute;
   inset: 0;
@@ -875,7 +851,6 @@ body {
   cursor: default;
 }
 
-/* Column separator lines */
 .data-table th:not(:last-child)::after {
   content: '';
   position: absolute;
@@ -883,7 +858,6 @@ body {
   background: var(--border-subtle);
 }
 
-/* Resize handle */
 .col-resizer {
   position: absolute;
   right: -3px; top: 0; bottom: 0;
@@ -896,7 +870,7 @@ body {
 
 .col-resizer:hover { background: rgba(12, 181, 160, 0.36); }
 
-/* ── Data cells ─────────────────────────────────────────────────────────── */
+/* ── Data cells ───────────────────────────────────────────────────────────── */
 .data-table td {
   padding: 8px 13px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.034);
@@ -915,20 +889,17 @@ body {
   border-left: 2px solid transparent;
 }
 
-/* Row hover */
 .data-table tbody tr:hover td {
   background: rgba(12, 181, 160, 0.045);
   color: #a8cce0;
 }
 
-/* Left accent line on first cell of hovered row */
 .data-table tbody tr:hover td:first-child {
   border-left-color: var(--accent);
 }
 
 .data-table tbody tr:last-child td { border-bottom: none; }
 
-/* Zebra — barely visible, just enough to aid scanning */
 .data-table tbody tr:nth-child(even) td {
   background: rgba(255, 255, 255, 0.012);
 }
@@ -1010,8 +981,13 @@ body {
 }
 
 @keyframes dash-fade-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0);   }
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes card-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
 
 .animate-in {
@@ -1068,7 +1044,7 @@ body {
   margin-top: 4px;
 }
 
-/* ── Loader subtext — helper message on long-running stages (VT) ── */
+/* ── Loader subtext ───────────────────────────────────────────────────────── */
 .loader-box .loader-subtext {
   display: none;
   font-size: 11px;
@@ -1080,16 +1056,16 @@ body {
   margin-top: -4px;
 }
 
-/* ── Processing pill — neutral info colour, prevents false Offline ── */
+/* ── Processing pill ──────────────────────────────────────────────────────── */
 .status-pill.status--processing {
   --status-color:  var(--info);
   --status-bg:     var(--info-bg);
   --status-border: var(--info-border);
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────────────────────
    Pagination — Enterprise Grade UI
-   ───────────────────────────────────────────────────────────── */
+───────────────────────────────────────────────────────────────────────────── */
 
 .pagination-bar {
   display: flex;
@@ -1165,18 +1141,18 @@ body {
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   DASHBOARD — SOC Visualization Panel
-   All classes are new additions. Zero existing styles modified.
+   DASHBOARD — SOC Visualization Panel  ·  Enterprise Glass UI Upgrade
+   All classes below are new additions. Zero existing styles modified.
 ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Dashboard panel — full-bleed inside .content-area ─────────────────── */
+/* ── Dashboard panel ─────────────────────────────────────────────────────── */
 #dashboard-panel {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   background: var(--bg-content);
-  animation: dash-fade-in 0.28s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation: dash-fade-in 0.36s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 /* ── Dashboard loader ────────────────────────────────────────────────────── */
@@ -1214,29 +1190,54 @@ body {
 #dashboard-content {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 4px 0 24px;
+  gap: 20px;
+  padding: 4px 0 28px;
   flex: 1;
   min-width: 0;
 }
 
-/* ── Dashboard toolbar ───────────────────────────────────────────────────── */
+/* ── Dashboard toolbar — GLASSMORPHISM UPGRADE ───────────────────────────── */
 .dashboard-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 20px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  padding: 14px 22px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
   flex-shrink: 0;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.40),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Glowing accent line across the top edge of the toolbar */
+.dashboard-toolbar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(12, 181, 160, 0.45) 30%,
+    rgba(12, 181, 160, 0.65) 50%,
+    rgba(12, 181, 160, 0.45) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
 }
 
 .dashboard-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
 }
 
@@ -1244,7 +1245,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 3px;
   flex: 2;
   text-align: center;
 }
@@ -1253,8 +1254,23 @@ body {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
   flex: 1;
+}
+
+/*
+  Toolbar button group — visual pill container around grouped action buttons.
+  Wrapping .btn-back + export buttons in .toolbar-btn-group in HTML is optional
+  but adds a premium grouped appearance.
+*/
+.toolbar-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 10px;
 }
 
 .dashboard-title {
@@ -1267,69 +1283,127 @@ body {
 .dashboard-dataset-label {
   font-size: 10.5px;
   font-family: var(--font-mono);
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.38);
   letter-spacing: 0.3px;
 }
 
-/* Back button */
+/* ── Back button — UPGRADED ──────────────────────────────────────────────── */
+/*
+  Unified height (34px) and padding (8px 14px) matching export buttons.
+  Hover: accent border + teal glow — identical treatment to export.
+  Left-slide micro-animation preserved.
+*/
 .btn-back {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-mild);
-  border-radius: var(--radius-md);
+  gap: 7px;
+  padding: 8px 14px;
+  height: 34px;
+  background: rgba(27, 37, 54, 0.80);
+  color: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  letter-spacing: 0.1px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   transition:
     background var(--t-base),
     color var(--t-base),
     border-color var(--t-base),
+    box-shadow var(--t-base),
     transform var(--t-fast);
 }
 
 .btn-back:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--border-strong);
+  background: rgba(34, 48, 68, 0.90);
+  color: var(--accent);
+  border-color: rgba(12, 181, 160, 0.40);
+  box-shadow: 0 0 14px rgba(12, 181, 160, 0.12);
   transform: translateX(-1px);
 }
 
 .btn-back:active { transform: scale(0.97); }
 
-/* ── Metric cards row ────────────────────────────────────────────────────── */
+/* ── Export / action buttons inside dashboard toolbar — UPGRADED ─────────── */
+/*
+  Matches .btn-back spec exactly: height 34px, padding 8px 14px, radius 9px.
+  Overrides base .btn and .btn-export only within .dashboard-toolbar so
+  sidebar and table export buttons are completely unaffected.
+*/
+.dashboard-toolbar .btn-export,
+.dashboard-toolbar .btn {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 9px;
+  width: auto;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  background: rgba(27, 37, 54, 0.80);
+  color: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  letter-spacing: 0.1px;
+  white-space: nowrap;
+}
+
+.dashboard-toolbar .btn-export:not(:disabled):hover,
+.dashboard-toolbar .btn:not(:disabled):hover {
+  background: rgba(34, 48, 68, 0.90);
+  color: var(--accent);
+  border-color: rgba(12, 181, 160, 0.40);
+  box-shadow: 0 0 14px rgba(12, 181, 160, 0.12);
+  transform: translateY(-1px);
+}
+
+.dashboard-toolbar .btn-export:not(:disabled):active,
+.dashboard-toolbar .btn:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* ── Metric cards — GLASSMORPHISM UPGRADE ────────────────────────────────── */
 .dashboard-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 14px;
 }
 
+/* Staggered card entrance — pure CSS, no JS required */
 .dash-metric-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 18px 20px;
-  background: rgba(20, 28, 40, 0.72);
-  border: 1px solid var(--border-mild);
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.3),
-    0 0 0 1px var(--border-subtle) inset;
+  gap: 8px;
+  padding: 22px 22px 20px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
   transition:
-    transform var(--t-base),
-    border-color var(--t-base),
-    box-shadow var(--t-base);
+    transform 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 200ms cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  animation: card-rise 0.42s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: 0.06s;
 }
 
+/* Per-child stagger delays */
+.dashboard-metrics .dash-metric-card:nth-child(1) { animation-delay: 0.06s; }
+.dashboard-metrics .dash-metric-card:nth-child(2) { animation-delay: 0.12s; }
+.dashboard-metrics .dash-metric-card:nth-child(3) { animation-delay: 0.18s; }
+.dashboard-metrics .dash-metric-card:nth-child(4) { animation-delay: 0.24s; }
+.dashboard-metrics .dash-metric-card:nth-child(5) { animation-delay: 0.30s; }
+.dashboard-metrics .dash-metric-card:nth-child(6) { animation-delay: 0.36s; }
+
+/* Top accent bar — revealed on hover */
 .dash-metric-card::before {
   content: '';
   position: absolute;
@@ -1337,25 +1411,42 @@ body {
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--accent), transparent);
   opacity: 0;
-  transition: opacity var(--t-slow);
+  transition: opacity 250ms ease;
+}
+
+/* Ambient glow orb in bottom-right corner */
+.dash-metric-card::after {
+  content: '';
+  position: absolute;
+  bottom: -28px;
+  right: -28px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(12, 181, 160, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 250ms ease;
 }
 
 .dash-metric-card:hover {
-  transform: translateY(-3px);
-  border-color: var(--border-strong);
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.11);
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.45),
-    0 0 0 1px var(--border-subtle) inset;
+    0 16px 40px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .dash-metric-card:hover::before { opacity: 1; }
+.dash-metric-card:hover::after  { opacity: 1; }
 
 .dash-metric-value {
   font-family: var(--font-mono);
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: -0.8px;
+  letter-spacing: -1px;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -1365,24 +1456,37 @@ body {
 .dash-metric-label {
   font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 1.4px;
-  color: var(--text-muted);
+  letter-spacing: 1.6px;
+  color: rgba(255, 255, 255, 0.32);
   text-transform: uppercase;
-  opacity: 0.7;
 }
 
-.dash-metric-card--accent .dash-metric-value { color: var(--accent); }
-.dash-metric-card--accent::before { opacity: 0.5; }
+/* Accent variant */
 .dash-metric-card--accent {
-  border-color: rgba(12, 181, 160, 0.16);
-  background: rgba(12, 181, 160, 0.05);
+  border-color: rgba(12, 181, 160, 0.18);
+  background: rgba(12, 181, 160, 0.055);
+}
+
+.dash-metric-card--accent .dash-metric-value {
+  color: var(--accent);
+  text-shadow: 0 0 28px rgba(12, 181, 160, 0.35);
+}
+
+.dash-metric-card--accent::before { opacity: 0.6; }
+
+.dash-metric-card--accent .dash-metric-label {
+  color: rgba(12, 181, 160, 0.55);
 }
 
 .dash-metric-card--accent:hover {
-  border-color: rgba(12, 181, 160, 0.32);
+  border-color: rgba(12, 181, 160, 0.35);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.55),
+    0 0 24px rgba(12, 181, 160, 0.10),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
 }
 
-/* ── Chart grid ──────────────────────────────────────────────────────────── */
+/* ── Chart grid — GLASSMORPHISM UPGRADE ──────────────────────────────────── */
 .dashboard-charts {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1396,51 +1500,112 @@ body {
 .dash-chart-card {
   display: flex;
   flex-direction: column;
-  background: var(--bg-raised);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
   overflow: hidden;
+  box-shadow: var(--glass-shadow);
+  animation: card-rise 0.44s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: 0.20s;
   transition:
-    border-color var(--t-slow),
-    box-shadow var(--t-slow);
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+  position: relative;
 }
+
+/* Per-child stagger delays for chart cards */
+.dashboard-charts .dash-chart-card:nth-child(1) { animation-delay: 0.16s; }
+.dashboard-charts .dash-chart-card:nth-child(2) { animation-delay: 0.22s; }
+.dashboard-charts .dash-chart-card:nth-child(3) { animation-delay: 0.28s; }
+.dashboard-charts .dash-chart-card:nth-child(4) { animation-delay: 0.34s; }
+.dashboard-charts .dash-chart-card:nth-child(5) { animation-delay: 0.40s; }
 
 .dash-chart-card:hover {
-  border-color: var(--border-mild);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.50),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  transform: translateY(-2px);
 }
 
+/* ── Chart header — UPGRADED ─────────────────────────────────────────────── */
 .dash-chart-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px 10px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.018);
   flex-shrink: 0;
+  gap: 12px;
 }
 
+/* Title left — full opacity, clear and readable */
 .dash-chart-title {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.2px;
-  color: var(--text-muted);
+  letter-spacing: 1.4px;
+  color: rgba(255, 255, 255, 0.72);
   text-transform: uppercase;
-  opacity: 0.8;
+}
+
+/* Right slot — holds badge + optional export icon */
+.dash-chart-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .dash-chart-badge {
   font-size: 10px;
   font-family: var(--font-mono);
-  color: var(--text-muted);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
+  color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 20px;
-  padding: 2px 8px;
-  opacity: 0.7;
+  padding: 2px 9px;
+  letter-spacing: 0.2px;
+}
+
+/*
+  Optional per-chart export button — lives inside .dash-chart-header-right.
+  Fades in on parent card hover so it doesn't crowd the header at rest.
+*/
+.dash-chart-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.30);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.dash-chart-card:hover .dash-chart-export { opacity: 1; }
+
+.dash-chart-export:hover {
+  color: var(--accent);
+  border-color: rgba(12, 181, 160, 0.35);
+  background: rgba(12, 181, 160, 0.06);
 }
 
 .dash-chart-body {
-  padding: 16px 18px 18px;
+  padding: 20px 20px 22px;
   flex: 1;
   position: relative;
   min-height: 0;
@@ -1454,48 +1619,54 @@ body {
   max-height: 240px;
 }
 
-/* ── Insights panel ──────────────────────────────────────────────────────── */
+/* ── Insights panel — GLASSMORPHISM UPGRADE ──────────────────────────────── */
 .dashboard-insights {
-  background: var(--bg-raised);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
   overflow: hidden;
-  transition: border-color var(--t-slow);
+  box-shadow: var(--glass-shadow);
+  animation: card-rise 0.44s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: 0.32s;
+  transition: border-color 220ms ease;
 }
 
-.dashboard-insights:hover { border-color: var(--border-mild); }
+.dashboard-insights:hover {
+  border-color: rgba(255, 255, 255, 0.10);
+}
 
 .dash-insights-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-elevated);
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(255, 255, 255, 0.018);
 }
 
 .dash-insights-icon {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   background: var(--accent);
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 6px var(--accent-glow);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .dash-insights-title {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.2px;
-  color: var(--text-muted);
+  letter-spacing: 1.4px;
+  color: rgba(255, 255, 255, 0.72);
   text-transform: uppercase;
-  opacity: 0.8;
 }
 
-/* Insights list */
+/* ── Insights list — UPGRADED ────────────────────────────────────────────── */
 #insights-list {
   list-style: none;
-  padding: 8px 0;
+  padding: 6px 0;
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -1504,43 +1675,35 @@ body {
 #insights-list li {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
+  gap: 12px;
+  padding: 11px 22px;
   font-size: 12.5px;
-  color: #7a9bb5;
+  color: rgba(168, 200, 224, 0.82);
   font-family: var(--font-ui);
   line-height: 1.5;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background var(--t-base), color var(--t-base);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+  transition:
+    background 160ms ease,
+    color 160ms ease;
 }
 
 #insights-list li:last-child { border-bottom: none; }
 
 #insights-list li:hover {
-  background: rgba(12, 181, 160, 0.03);
-  color: #a8c8e0;
+  background: rgba(12, 181, 160, 0.035);
+  color: rgba(200, 224, 240, 0.95);
 }
 
-/* Remove old dot bullet — replaced by severity badge from JS */
 #insights-list li::before { display: none; }
 
-/* ── Insight text span ───────────────────────────────────────────────────── */
+/* ── Insight text span ────────────────────────────────────────────────────── */
 .insight-text {
   flex: 1;
   min-width: 0;
   line-height: 1.55;
 }
 
-/* ── Insight severity badges ─────────────────────────────────────────────── */
-/*
-  Three severity levels, each using existing design token colors:
-    info     → accent teal  (neutral / informational)
-    warning  → amber        (elevated — potential threat)
-    critical → danger red   (confirmed high-severity finding)
-
-  Badge is flex-shrink: 0 so it never wraps or compresses.
-  Width is fixed so all text columns align vertically.
-*/
+/* ── Insight severity badges ──────────────────────────────────────────────── */
 .insight-badge {
   display: inline-flex;
   align-items: center;
@@ -1558,49 +1721,53 @@ body {
   user-select: none;
 }
 
-/* INFO — teal, matches accent */
 .insight-badge--info {
   background: rgba(12, 181, 160, 0.10);
   color: var(--accent);
   border: 1px solid rgba(12, 181, 160, 0.22);
 }
 
-/* WARNING — amber */
 .insight-badge--warning {
   background: var(--warning-bg);
   color: var(--warning);
   border: 1px solid var(--warning-border);
 }
 
-/* CRITICAL — red */
 .insight-badge--critical {
   background: var(--danger-bg);
   color: var(--danger);
   border: 1px solid var(--danger-border);
 }
 
-/* Severity-driven row accent — left border color per severity */
+/* Severity row accents */
 #insights-list li[data-severity="warning"] {
   border-left: 2px solid var(--warning);
-  padding-left: 18px;
+  padding-left: 20px;
 }
 
 #insights-list li[data-severity="critical"] {
   border-left: 2px solid var(--danger);
-  padding-left: 18px;
+  padding-left: 20px;
   background: rgba(232, 76, 66, 0.025);
 }
 
 #insights-list li[data-severity="critical"]:hover {
   background: rgba(232, 76, 66, 0.05);
-  color: #c8a8a0;
+  color: rgba(200, 168, 160, 0.95);
 }
 
 #insights-list li[data-severity="info"] {
   border-left: 2px solid transparent;
 }
 
-/* ── Dashboard responsive ────────────────────────────────────────────────── */
+/* ── Stats section ────────────────────────────────────────────────────────── */
+#stats-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Dashboard responsive ─────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .dashboard-metrics {
     grid-template-columns: repeat(2, 1fr);
@@ -1634,10 +1801,4 @@ body {
     gap: 16px;
     padding-bottom: 16px;
   }
-}
-
-#stats-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
